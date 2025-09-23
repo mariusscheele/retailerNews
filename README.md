@@ -34,6 +34,10 @@ Retailer News is an experimental crawler intended to collect news and analysis a
    uvicorn retailernews.api.app:app --reload
    ```
 
+   The server now also serves a minimal control panel at
+   [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Use the "Run crawler" button to
+   trigger a crawl across all configured sites without needing an API client.
+
    The API exposes the following endpoints:
 
    - `GET /api/sites`: list configured sources
