@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from starlette.responses import HTMLResponse
 
 from retailernews.api.routes import router
 
