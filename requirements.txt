@@ -1,0 +1,10 @@
+azure-functions
+azure-identity
+azure-storage-blob
+azure-data-tables
+requests
+beautifulsoup4
+lxml
+tldextract
+readability-lxml
+python-dateutil
