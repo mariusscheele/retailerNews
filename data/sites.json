@@ -6,9 +6,59 @@
       "topics": ["consumer behavior", "e-commerce", "store design"]
     },
     {
+      "name": "McKinsey Retail Insights",
+      "url": "https://www.mckinsey.com/industries/retail/our-insights",
+      "topics": ["retail", "strategy", "industry insights"]
+    },
+    {
+      "name": "Retail Gazette Feature Articles",
+      "url": "https://www.retailgazette.co.uk/blog/category/insight/feature-articles/",
+      "topics": ["retail", "features", "uk market"]
+    },
+    {
+      "name": "Forbes Retail",
+      "url": "https://www.forbes.com/search/?q=retail",
+      "topics": ["retail", "business", "market trends"]
+    },
+    {
+      "name": "Glossy",
+      "url": "https://www.glossy.co/",
+      "topics": ["beauty", "fashion", "wellness"]
+    },
+    {
+      "name": "BeautyMatter",
+      "url": "https://beautymatter.com/",
+      "topics": ["beauty", "wellness", "industry news"]
+    },
+    {
+      "name": "Cosmetics Business",
+      "url": "https://cosmeticsbusiness.com/",
+      "topics": ["beauty", "cosmetics", "market analysis"]
+    },
+    {
+      "name": "eMarketer Articles",
+      "url": "https://www.emarketer.com/articles",
+      "topics": ["e-commerce", "digital marketing", "data insights"]
+    },
+    {
       "name": "Practical Ecommerce",
       "url": "https://www.practicalecommerce.com/",
-      "topics": ["ecommerce trends", "analytics"]
+      "topics": ["e-commerce", "operations", "strategy"]
+    },
+    {
+      "name": "Retail Design Blog",
+      "url": "https://retaildesignblog.net/",
+      "topics": ["store design", "visual merchandising", "inspiration"]
+    },
+    {
+      "name": "Retailmagasinet",
+      "url": "https://www.retailmagasinet.no/",
+      "topics": ["retail", "norway", "scandinavia"]
+    },
+    {
+      "name": "Handelswatch",
+      "url": "https://handelswatch.no/",
+      "topics": ["retail", "norway", "industry news"]
     }
   ]
 }
