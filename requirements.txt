@@ -8,3 +8,6 @@ lxml
 tldextract
 readability-lxml
 python-dateutil
+fastapi
+uvicorn
+pydantic

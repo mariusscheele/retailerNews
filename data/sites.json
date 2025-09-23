@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "name": "Retail Dive",
+      "url": "https://www.retaildive.com/",
+      "topics": ["consumer behavior", "e-commerce", "store design"]
+    },
+    {
+      "name": "Practical Ecommerce",
+      "url": "https://www.practicalecommerce.com/",
+      "topics": ["ecommerce trends", "analytics"]
+    }
+  ]
+}
