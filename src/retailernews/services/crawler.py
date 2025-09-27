@@ -36,7 +36,7 @@ class SiteCrawler:
         response.raise_for_status()
 
         document = Document(response.text)
-        summary_html = document.summary()
+        summary_html = response.text
         soup = BeautifulSoup(summary_html, "lxml")
 
         articles = list(self._extract_articles(soup, site.topics, site.url))
@@ -52,6 +52,9 @@ class SiteCrawler:
             title = link.get_text(strip=True)
             href = link.get("href")
             if not title or not href:
+                continue
+
+            if site_url not in href:
                 continue
 
             article_url = urljoin(site_url, href)
