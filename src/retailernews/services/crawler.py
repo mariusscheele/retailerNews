@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Iterable, List
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -38,10 +39,12 @@ class SiteCrawler:
         summary_html = document.summary()
         soup = BeautifulSoup(summary_html, "lxml")
 
-        articles = list(self._extract_articles(soup, site.topics))
+        articles = list(self._extract_articles(soup, site.topics, site.url))
         return CrawlResult(source=site.name, articles=articles, fetched_at=datetime.utcnow())
 
-    def _extract_articles(self, soup: BeautifulSoup, topics: Iterable[str]) -> Iterable[Article]:
+    def _extract_articles(
+        self, soup: BeautifulSoup, topics: Iterable[str], site_url: str
+    ) -> Iterable[Article]:
         for link in soup.find_all("a"):
             title = link.get_text(strip=True)
             href = link.get("href")
@@ -50,19 +53,53 @@ class SiteCrawler:
 
             lower_title = title.lower()
             matched_topics: List[str] = [topic for topic in topics if topic.lower() in lower_title]
-            summary = self._build_summary(link)
+            article_url = urljoin(site_url, href)
+            summary = self._build_summary(link, site_url, article_url)
 
             if matched_topics or summary:
                 try:
-                    article = Article(title=title, url=href, summary=summary, topics=matched_topics)
+                    article = Article(
+                        title=title,
+                        url=article_url,
+                        summary=summary,
+                        topics=matched_topics,
+                    )
                     yield article
                 except Exception as exc:  # pydantic validation error
                     logger.debug("Skipping article due to validation error: %s", exc)
 
-    def _build_summary(self, link: BeautifulSoup) -> str | None:
+    def _build_summary(self, link: BeautifulSoup, site_url: str, article_url: str) -> str | None:
         paragraph = link.find_parent("p")
         if paragraph:
             text = paragraph.get_text(strip=True)
             if text and len(text) > 40:
                 return text
-        return None
+
+        if not self._is_same_site(site_url, article_url):
+            return None
+
+        try:
+            response = requests.get(article_url, headers={"User-Agent": USER_AGENT}, timeout=self.timeout)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.debug("Failed to fetch article for summary %s: %s", article_url, exc)
+            return None
+
+        document = Document(response.text)
+        summary_html = document.summary()
+        summary_soup = BeautifulSoup(summary_html, "lxml")
+        text = summary_soup.get_text(separator=" ", strip=True)
+        return text or None
+
+    @staticmethod
+    def _is_same_site(site_url: str, article_url: str) -> bool:
+        root = urlparse(site_url)
+        article = urlparse(article_url)
+
+        if not root.netloc:
+            return False
+
+        if not article.netloc:
+            return True
+
+        return article.netloc == root.netloc
