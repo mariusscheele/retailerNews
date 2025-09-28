@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable, List, Tuple
 from urllib.parse import urljoin, urlparse
 
@@ -16,6 +19,8 @@ from retailernews.config import SiteConfig
 from retailernews.models import Article, CrawlResult
 
 logger = logging.getLogger(__name__)
+
+BLOBSTORE_ROOT = Path("./blobstore")
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -36,16 +41,22 @@ class SiteCrawler:
         response = requests.get(site.url, headers={"User-Agent": USER_AGENT}, timeout=self.timeout)
         response.raise_for_status()
 
-        document = Document(response.text)
-        summary_html = response.text
-        soup = BeautifulSoup(summary_html, "lxml")
+        soup = BeautifulSoup(response.text, "lxml")
+        fetched_at = datetime.now(timezone.utc)
 
-        articles = list(self._extract_articles(soup, site.topics, site.url))
-        return CrawlResult(source=site.name, articles=articles, fetched_at=datetime.utcnow())
+        articles = list(self._extract_articles(soup, site.topics, site.url, fetched_at))
+        return CrawlResult(source=site.name, articles=articles, fetched_at=fetched_at)
 
     def _extract_articles(
-        self, soup: BeautifulSoup, topics: Iterable[str], site_url: str
+        self,
+        soup: BeautifulSoup,
+        topics: Iterable[str],
+        site_url: str,
+        fetched_at: datetime | None = None,
     ) -> Iterable[Article]:
+        if fetched_at is None:
+            fetched_at = datetime.now(timezone.utc)
+
         candidates: List[Tuple[str, str, List[str], BeautifulSoup]] = []
         seen_urls: set[str] = set()
 
@@ -53,9 +64,6 @@ class SiteCrawler:
             title = link.get_text(strip=True)
             href = link.get("href")
             if not title or not href:
-                continue
-
-            if site_url not in href:
                 continue
 
             article_url = urljoin(site_url, href)
@@ -72,24 +80,39 @@ class SiteCrawler:
             candidates.append((title, article_url, matched_topics, link))
 
         for title, article_url, matched_topics, link in candidates:
-            summary, published_at = self._build_article_details(link, article_url)
+            summary_result = self._build_summary(link, article_url)
+            if isinstance(summary_result, tuple):
+                summary, text, published_at = summary_result
+            else:
+                summary = summary_result
+                text = None
+                published_at = None
 
-            if matched_topics or summary:
+            if matched_topics or summary or text:
                 try:
                     article = Article(
                         title=title,
                         url=article_url,
                         summary=summary,
+                        text=text,
                         published_at=published_at,
                         topics=matched_topics,
                     )
-                    yield article
                 except Exception as exc:  # pydantic validation error
                     logger.debug("Skipping article due to validation error: %s", exc)
+                    continue
+
+                self._store_article_blob(site_url, article, fetched_at)
+                yield article
+
+    def _build_summary(
+        self, link: BeautifulSoup, article_url: str
+    ) -> Tuple[str | None, str | None, datetime | None]:
+        return self._build_article_details(link, article_url)
 
     def _build_article_details(
         self, link: BeautifulSoup, article_url: str
-    ) -> Tuple[str | None, datetime | None]:
+    ) -> Tuple[str | None, str | None, datetime | None]:
         paragraph = link.find_parent("p")
         summary: str | None = None
         if paragraph:
@@ -102,19 +125,54 @@ class SiteCrawler:
             response.raise_for_status()
         except requests.RequestException as exc:
             logger.debug("Failed to fetch article for summary %s: %s", article_url, exc)
-            return summary, None
+            return summary, None, None
 
         soup = BeautifulSoup(response.text, "lxml")
         published_at = self._extract_published_at(soup)
+        article_text: str | None = None
 
-        if summary is None:
+        try:
             document = Document(response.text)
             summary_html = document.summary()
             summary_soup = BeautifulSoup(summary_html, "lxml")
-            text = summary_soup.get_text(separator=" ", strip=True)
+            extracted_text = summary_soup.get_text(separator="\n", strip=True)
+            if extracted_text:
+                article_text = extracted_text
+                if summary is None:
+                    lines = [line.strip() for line in extracted_text.splitlines() if line.strip()]
+                    summary = " ".join(lines) or None
+        except Exception as exc:  # pragma: no cover - best effort parsing
+            logger.debug("Failed to parse article body %s: %s", article_url, exc)
+
+        if summary is None:
+            text = soup.get_text(separator=" ", strip=True)
             summary = text or None
 
-        return summary, published_at
+        return summary, article_text, published_at
+
+    def _store_article_blob(self, site_url: str, article: Article, fetched_at: datetime) -> None:
+        fingerprint = hashlib.sha1(str(article.url).encode("utf-8")).hexdigest()
+        netloc = urlparse(site_url).netloc or urlparse(str(article.url)).netloc
+        date_folder = fetched_at.strftime("%Y%m%d")
+        blob_path = BLOBSTORE_ROOT / f"site={netloc}" / date_folder / f"{fingerprint}.json"
+
+        fetched_iso = (
+            fetched_at.astimezone(timezone.utc)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+
+        payload = {
+            "url": str(article.url),
+            "title": article.title,
+            "fetched_at": fetched_iso,
+            "text": article.text or "",
+        }
+
+        blob_path.parent.mkdir(parents=True, exist_ok=True)
+        with blob_path.open("w", encoding="utf-8") as fp:
+            json.dump(payload, fp, ensure_ascii=False, indent=2)
 
     def _extract_published_at(self, soup: BeautifulSoup) -> datetime | None:
         candidates: List[str] = []
