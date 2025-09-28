@@ -65,6 +65,10 @@ class SiteCrawler:
             href = link.get("href")
             if not title or not href:
                 continue
+            
+            if site_url not in href:
+                continue
+
 
             article_url = urljoin(site_url, href)
             if not self._is_same_site(site_url, article_url):
