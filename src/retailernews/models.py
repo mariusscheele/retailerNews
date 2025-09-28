@@ -14,6 +14,7 @@ class Article(BaseModel):
     title: str
     url: HttpUrl
     summary: Optional[str] = None
+    text: Optional[str] = None
     published_at: Optional[datetime] = None
     topics: List[str] = Field(default_factory=list)
 
