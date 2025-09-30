@@ -10,6 +10,7 @@ from typing import List, Set
 
 BLOB_ROOT = "./blobstore"
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
+STORED_URLS_INDEX = "stored_urls.json"
 
 HEADERS = {
     "User-Agent": (
@@ -26,6 +27,38 @@ def store_json(path: str, payload: dict) -> None:
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     with open(full_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def record_stored_url(url: str, index_filename: str = STORED_URLS_INDEX) -> None:
+    """Record a stored article URL inside the blob root index file."""
+
+    blob_root = Path(BLOB_ROOT)
+    blob_root.mkdir(parents=True, exist_ok=True)
+
+    index_path = blob_root / index_filename
+
+    urls: List[str] = []
+    if index_path.exists():
+        try:
+            with index_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            data = None
+
+        if isinstance(data, dict):
+            maybe_urls = data.get("urls")
+            if isinstance(maybe_urls, list):
+                urls = [str(u) for u in maybe_urls]
+        elif isinstance(data, list):
+            urls = [str(u) for u in data]
+
+    if url in urls:
+        return
+
+    urls.append(url)
+
+    with index_path.open("w", encoding="utf-8") as f:
+        json.dump({"urls": urls}, f, ensure_ascii=False, indent=2)
 
 
 def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> bool:
@@ -161,6 +194,7 @@ def crawl(root_url: str, use_sitemap: bool = False, sitemap_url: str = None, fil
                 "text": text,
             }
             store_json(path, payload)
+            record_stored_url(link)
             print(f"Stored {link}")
         except Exception as e:
             print(f"Failed {link}: {e}")
