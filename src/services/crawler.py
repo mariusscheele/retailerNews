@@ -2,12 +2,14 @@ import os
 import json
 import hashlib
 import datetime
+from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from typing import List, Set
 
 BLOB_ROOT = "./blobstore"
+EXTRACTED_URLS_INDEX = "extracted_urls.json"
 
 HEADERS = {
     "User-Agent": (
@@ -24,6 +26,48 @@ def store_json(path: str, payload: dict) -> None:
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     with open(full_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> bool:
+    """Return True if the given URL has already been extracted."""
+
+    blob_root = Path(BLOB_ROOT)
+    index_path = blob_root / index_filename
+
+    # Prefer checking a dedicated index file if present.
+    if index_path.exists():
+        try:
+            with index_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            data = None
+
+        if isinstance(data, dict):
+            urls = data.get("urls")
+        else:
+            urls = data
+
+        if isinstance(urls, list) and url in urls:
+            return True
+
+    if not blob_root.exists():
+        return False
+
+    # Fallback: scan all stored JSON payloads for the URL.
+    for json_path in blob_root.rglob("*.json"):
+        if json_path == index_path:
+            continue
+
+        try:
+            with json_path.open("r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        if isinstance(payload, dict) and payload.get("url") == url:
+            return True
+
+    return False
 
 
 def article_path(url: str) -> str:
@@ -98,7 +142,7 @@ def crawl(root_url: str, use_sitemap: bool = False, sitemap_url: str = None, fil
     for link in links:
         path = article_path(link)
         full_path = os.path.join(BLOB_ROOT, path)
-        if os.path.exists(full_path):
+        if os.path.exists(full_path) or has_been_extracted(link):
             continue  # skip if already stored
 
         try:
