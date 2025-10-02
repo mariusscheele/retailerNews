@@ -65,7 +65,8 @@ def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> 
     """Return True if the given URL has already been extracted."""
 
     blob_root = Path(BLOB_ROOT)
-    index_path = blob_root / index_filename
+    index_path = blob_root / "stored_urls.json"
+
 
     # Prefer checking a dedicated index file if present.
     if index_path.exists():
@@ -81,6 +82,7 @@ def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> 
             urls = data
 
         if isinstance(urls, list) and url in urls:
+            print("The text in the url has already been extracted")
             return True
 
     if not blob_root.exists():
@@ -175,7 +177,8 @@ def crawl(root_url: str, use_sitemap: bool = False, sitemap_url: str = None, fil
     for link in links:
         path = article_path(link)
         full_path = os.path.join(BLOB_ROOT, path)
-        if os.path.exists(full_path) or has_been_extracted(link):
+        ' os.path.exists(full_path) or '
+        if has_been_extracted(link):
             continue  # skip if already stored
 
         try:
