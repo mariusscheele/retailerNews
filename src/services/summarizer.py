@@ -9,26 +9,37 @@ from urllib.parse import urlparse
 from openai import OpenAI
 
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI()
 
 
 def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mini") -> str:
     """Summarize a single article into concise bullet points."""
     truncated_text = text[:4000] if text else ""
+    
     messages = [
         {
             "role": "system",
-            "content": "You are an assistant that summarizes retail industry news into concise bullet points.",
+             "content": [
+                {
+                    "type": "text",
+                    "text": "You are an assistant that summarizes retail industry news into concise bullet points.",
+                }
+            ],
         },
         {
             "role": "user",
-            "content": (
-                "Summarize the following article into 3-5 short bullet points focusing on key facts and implications "
-                "for retail executives.\n\nTitle: {title}\n\nContent:\n{content}".format(
-                    title=title or "(untitled)",
-                    content=truncated_text,
-                ),
-            ),
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "Summarize the following article into 3-5 short bullet points focusing on key facts and implications "
+                        "for retail executives.\n\nTitle: {title}\n\nContent:\n{content}".format(
+                            title=title or "(untitled)",
+                            content=truncated_text,
+                        )
+                    ),
+                }
+            ],
         },
     ]
 
@@ -38,6 +49,8 @@ def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mi
         messages=messages,
         temperature=0.3,
     )
+
+    
     return response.choices[0].message.content.strip()
 
 
@@ -75,7 +88,10 @@ def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-
         return summaries
 
     for article_path in root_path.rglob("*.json"):
-        if "summaries" in article_path.parts:
+        
+        if "summaries"  in article_path.parts:
+            continue
+        if "stored_urls" in article_path.name:
             continue
         try:
             with article_path.open("r", encoding="utf-8") as f:
@@ -83,11 +99,10 @@ def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Skipping {article_path}: {exc}")
             continue
-
+        print(article_path)
         text = article.get("text", "")
         title = article.get("title", "")
         url = article.get("url", "")
-
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
         summaries.append(summary)
         store_summary(blob_root, url=url or "", title=title or "", summary=summary)
