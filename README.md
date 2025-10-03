@@ -14,6 +14,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Configuration
+
+Environment variables can be provided via a local `.env` file in the project
+root. The server loads this file automatically on startup so you can, for
+example, set your OpenAI credentials:
+
+```bash
+OPENAI_API_KEY=sk-your-key-here
+```
+
 ## Running the server
 
 Launch the FastAPI server with Uvicorn using the module form so it also works when the `uvicorn` executable is not on your PATH:
