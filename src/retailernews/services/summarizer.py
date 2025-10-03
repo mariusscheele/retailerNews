@@ -16,13 +16,46 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency during tes
     OpenAI = None  # type: ignore[assignment]
     _client = None
 else:
-    _client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    def _load_openai_api_key() -> str | None:
+        env_key = os.environ.get("OPENAI_API_KEY")
+        if env_key:
+            return env_key
+
+        env_path = None
+        current = Path(__file__).resolve().parent
+        for candidate in (current, *current.parents):
+            possible = candidate / ".env"
+            if possible.exists():
+                env_path = possible
+                break
+
+        if env_path is None:
+            return None
+
+        try:
+            with env_path.open("r", encoding="utf-8") as env_file:
+                for raw_line in env_file:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    if key.strip() == "OPENAI_API_KEY":
+                        return value.strip().strip('"').strip("'")
+        except OSError:
+            return None
+
+        return None
+
+    _client = OpenAI(api_key=_load_openai_api_key())
 
 
 def _get_client() -> "OpenAI":
     if _client is None:  # pragma: no cover - runtime guard
         raise RuntimeError(
-            "OpenAI client is not available. Install the 'openai' package and set OPENAI_API_KEY."
+            "OpenAI client is not available. Install the 'openai' package and set OPENAI_API_KEY "
+            "(either in the environment or in a .env file)."
         )
     return _client
 
