@@ -122,6 +122,19 @@ def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-
     if not root_path.exists():
         return summaries
 
+    summaries_dir = root_path / "summaries"
+    if summaries_dir.exists():
+        for summary_path in summaries_dir.rglob("*.json"):
+            try:
+                with summary_path.open("r", encoding="utf-8") as f:
+                    summary_payload = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            summary_text = summary_payload.get("summary")
+            if summary_text:
+                summaries.append(summary_text)
+
     for article_path in root_path.rglob("*.json"):
         if "summaries" in article_path.parts:
             continue
