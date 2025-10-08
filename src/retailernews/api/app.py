@@ -102,6 +102,33 @@ INDEX_HTML = """
         margin-top: 16px;
         font-weight: 600;
       }
+
+      .digest-panel {
+        margin-top: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .digest-panel h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #1f2937;
+      }
+
+      .digest-box {
+        width: 100%;
+        min-height: 180px;
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(15, 23, 42, 0.1);
+        background: #f8fafc;
+        color: #0f172a;
+        font-size: 1rem;
+        line-height: 1.5;
+        resize: vertical;
+        box-shadow: inset 0 2px 8px rgba(15, 23, 42, 0.08);
+      }
     </style>
   </head>
   <body>
@@ -123,16 +150,24 @@ INDEX_HTML = """
       </div>
       <div class=\"status\" id=\"status\"></div>
       <pre id=\"results\" hidden></pre>
+      <section class=\"digest-panel\" id=\"digest-panel\" hidden>
+        <h2>Executive Digest</h2>
+        <textarea class=\"digest-box\" id=\"digest-text\" readonly></textarea>
+      </section>
     </main>
     <script>
       const crawlerButton = document.getElementById("run-crawler");
       const summarizerButton = document.getElementById("run-summarizer");
       const statusEl = document.getElementById("status");
       const resultsEl = document.getElementById("results");
+      const digestPanel = document.getElementById("digest-panel");
+      const digestText = document.getElementById("digest-text");
 
-      async function callEndpoint(button, url, pendingMessage) {
+      async function callEndpoint(button, url, pendingMessage, onSuccess) {
         statusEl.textContent = pendingMessage;
         resultsEl.hidden = true;
+        digestPanel.hidden = true;
+        digestText.value = "";
         button.disabled = true;
 
         try {
@@ -144,11 +179,16 @@ INDEX_HTML = """
 
           const payload = await response.json();
           statusEl.textContent = `Completed at ${new Date().toLocaleTimeString()}`;
-          resultsEl.hidden = false;
-          resultsEl.textContent = JSON.stringify(payload, null, 2);
+          if (onSuccess) {
+            onSuccess(payload);
+          } else {
+            resultsEl.hidden = false;
+            resultsEl.textContent = JSON.stringify(payload, null, 2);
+          }
         } catch (error) {
           statusEl.textContent = `Error: ${error.message}`;
           resultsEl.hidden = true;
+          digestPanel.hidden = true;
         } finally {
           button.disabled = false;
         }
@@ -162,7 +202,17 @@ INDEX_HTML = """
         callEndpoint(
           summarizerButton,
           "/api/summaries",
-          "Building digest..."
+          "Building digest...",
+          (payload) => {
+            const digest = payload?.digest?.trim();
+            if (digest) {
+              digestText.value = digest;
+              digestPanel.hidden = false;
+            } else {
+              resultsEl.hidden = false;
+              resultsEl.textContent = "No digest content available.";
+            }
+          }
         )
       );
     </script>
