@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import List
 from urllib.parse import urlparse
 
+from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
+
 try:  # pragma: no cover - optional dependency during tests
     from openai import OpenAI
 except ModuleNotFoundError:  # pragma: no cover - optional dependency during tests
@@ -122,15 +124,16 @@ def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mi
     return response.choices[0].message.content.strip()
 
 
-def store_summary(blob_root: str, url: str, title: str, summary: str) -> None:
+def store_summary(blob_root: str | Path, url: str, title: str, summary: str) -> None:
     """Persist the summary JSON into the summaries blobstore."""
 
+    root = resolve_blob_root(blob_root)
     parsed = urlparse(url)
     host = parsed.netloc or "unknown"
     date_folder = datetime.utcnow().strftime("%Y%m%d")
     sha = hashlib.sha1(url.encode("utf-8")).hexdigest()
 
-    summary_dir = Path(blob_root) / "summaries" / f"site={host}" / date_folder
+    summary_dir = root / "summaries" / f"site={host}" / date_folder
     summary_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -147,11 +150,13 @@ def store_summary(blob_root: str, url: str, title: str, summary: str) -> None:
     print(f"Stored summary for {title or url} at {output_path}")
 
 
-def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-mini") -> List[str]:
+def map_summarize_articles(
+    blob_root: str | Path = DEFAULT_BLOB_ROOT, model: str = "gpt-4o-mini"
+) -> List[str]:
     """Summarize all articles within the blobstore and store results."""
 
     summaries: List[str] = []
-    root_path = Path(blob_root)
+    root_path = resolve_blob_root(blob_root)
 
     if not root_path.exists():
         print(f"Blob root {blob_root} does not exist. Nothing to summarize.")
@@ -175,7 +180,7 @@ def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-
         url = article.get("url", "")
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
         summaries.append(summary)
-        store_summary(blob_root, url=url or "", title=title or "", summary=summary)
+        store_summary(root_path, url=url or "", title=title or "", summary=summary)
 
     return summaries
 
@@ -211,7 +216,9 @@ def reduce_summaries(summaries: List[str], model: str = "gpt-4o-mini") -> str:
     return response.choices[0].message.content.strip()
 
 
-def map_reduce_summarize(blob_root: str = "./blobstore", model: str = "gpt-4o-mini") -> str:
+def map_reduce_summarize(
+    blob_root: str | Path = DEFAULT_BLOB_ROOT, model: str = "gpt-4o-mini"
+) -> str:
     """Run the full map-reduce summarization pipeline."""
 
     summaries = map_summarize_articles(blob_root=blob_root, model=model)

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from retailernews.blobstore import DEFAULT_BLOB_ROOT
 from retailernews.config import AppConfig
 from retailernews.services.crawler import SiteCrawlResult, SiteCrawler
 from retailernews.services.summarizer import map_reduce_summarize
@@ -65,7 +66,7 @@ async def trigger_crawler() -> CrawlResponse:
 
 @router.post("/summaries", response_model=SummariesResponse)
 async def trigger_summarizer(
-    blob_root: str = "./blobstore", model: str = "gpt-4o-mini"
+    blob_root: str = str(DEFAULT_BLOB_ROOT), model: str = "gpt-4o-mini"
 ) -> SummariesResponse:
     """Execute the map-reduce summariser pipeline."""
 
