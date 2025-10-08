@@ -1,4 +1,3 @@
-import os
 import json
 import hashlib
 import datetime
@@ -8,7 +7,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from typing import List, Set
 
-BLOB_ROOT = "./blobstore"
+from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
+
+BLOB_ROOT = DEFAULT_BLOB_ROOT
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
 STORED_URLS_INDEX = "stored_urls.json"
 
@@ -21,21 +22,24 @@ HEADERS = {
 }
 
 
-def store_json(path: str, payload: dict) -> None:
+def store_json(path: str, payload: dict, *, blob_root: Path | str | None = None) -> None:
     """Save payload as JSON into local blob-style folder."""
-    full_path = os.path.join(BLOB_ROOT, path)
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    with open(full_path, "w", encoding="utf-8") as f:
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    full_path = root / path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    with full_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def record_stored_url(url: str, index_filename: str = STORED_URLS_INDEX) -> None:
+def record_stored_url(
+    url: str, index_filename: str = STORED_URLS_INDEX, *, blob_root: Path | str | None = None
+) -> None:
     """Record a stored article URL inside the blob root index file."""
 
-    blob_root = Path(BLOB_ROOT)
-    blob_root.mkdir(parents=True, exist_ok=True)
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    root.mkdir(parents=True, exist_ok=True)
 
-    index_path = blob_root / index_filename
+    index_path = root / index_filename
 
     urls: List[str] = []
     if index_path.exists():
@@ -61,11 +65,13 @@ def record_stored_url(url: str, index_filename: str = STORED_URLS_INDEX) -> None
         json.dump({"urls": urls}, f, ensure_ascii=False, indent=2)
 
 
-def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> bool:
+def has_been_extracted(
+    url: str, index_filename: str = EXTRACTED_URLS_INDEX, *, blob_root: Path | str | None = None
+) -> bool:
     """Return True if the given URL has already been extracted."""
 
-    blob_root = Path(BLOB_ROOT)
-    index_path = blob_root / "stored_urls.json"
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    index_path = root / "stored_urls.json"
 
 
     # Prefer checking a dedicated index file if present.
@@ -85,11 +91,11 @@ def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> 
             print("The text in the url has already been extracted")
             return True
 
-    if not blob_root.exists():
+    if not root.exists():
         return False
 
     # Fallback: scan all stored JSON payloads for the URL.
-    for json_path in blob_root.rglob("*.json"):
+    for json_path in root.rglob("*.json"):
         if json_path == index_path:
             continue
 
@@ -174,11 +180,12 @@ def crawl(root_url: str, use_sitemap: bool = False, sitemap_url: str = None, fil
 
     print(f"Discovered {len(links)} links")
 
+    storage_root = resolve_blob_root(BLOB_ROOT)
+
     for link in links:
         path = article_path(link)
-        full_path = os.path.join(BLOB_ROOT, path)
-        ' os.path.exists(full_path) or '
-        if has_been_extracted(link):
+
+        if has_been_extracted(link, blob_root=storage_root):
             continue  # skip if already stored
 
         try:
@@ -196,8 +203,8 @@ def crawl(root_url: str, use_sitemap: bool = False, sitemap_url: str = None, fil
                 "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "text": text,
             }
-            store_json(path, payload)
-            record_stored_url(link)
+            store_json(path, payload, blob_root=storage_root)
+            record_stored_url(link, blob_root=storage_root)
             print(f"Stored {link}")
         except Exception as e:
             print(f"Failed {link}: {e}")

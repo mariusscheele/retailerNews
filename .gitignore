@@ -4,5 +4,7 @@ __pycache__/
 .venv/
 .DS_Store
 pytest_cache/
-blobstore/
+/blobstore/
 .env
+src/retailernews/blobstore/data/*
+!src/retailernews/blobstore/data/.gitkeep

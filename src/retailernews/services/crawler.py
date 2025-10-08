@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Iterator, List, Sequence, Set
 from urllib.parse import urljoin, urlparse
@@ -15,10 +14,11 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field, HttpUrl
 
 from retailernews.config import SiteConfig
+from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
 
 __all__ = ["Article", "SiteCrawler", "SiteCrawlResult"]
 
-BLOB_ROOT = "./blobstore"
+BLOB_ROOT = DEFAULT_BLOB_ROOT
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
 STORED_URLS_INDEX = "stored_urls.json"
 
@@ -34,22 +34,25 @@ DEFAULT_HEADERS = {
 HEADERS = DEFAULT_HEADERS
 
 
-def store_json(path: str, payload: dict) -> None:
+def store_json(path: str, payload: dict, *, blob_root: Path | str | None = None) -> None:
     """Save payload as JSON into local blob-style folder."""
 
-    full_path = os.path.join(BLOB_ROOT, path)
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    with open(full_path, "w", encoding="utf-8") as file:
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    full_path = root / path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    with full_path.open("w", encoding="utf-8") as file:
         json.dump(payload, file, ensure_ascii=False, indent=2)
 
 
-def record_stored_url(url: str, index_filename: str = STORED_URLS_INDEX) -> None:
+def record_stored_url(
+    url: str, index_filename: str = STORED_URLS_INDEX, *, blob_root: Path | str | None = None
+) -> None:
     """Record a stored article URL inside the blob root index file."""
 
-    blob_root = Path(BLOB_ROOT)
-    blob_root.mkdir(parents=True, exist_ok=True)
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    root.mkdir(parents=True, exist_ok=True)
 
-    index_path = blob_root / index_filename
+    index_path = root / index_filename
 
     urls: List[str] = []
     if index_path.exists():
@@ -75,11 +78,13 @@ def record_stored_url(url: str, index_filename: str = STORED_URLS_INDEX) -> None
         json.dump({"urls": urls}, file, ensure_ascii=False, indent=2)
 
 
-def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> bool:
+def has_been_extracted(
+    url: str, index_filename: str = EXTRACTED_URLS_INDEX, *, blob_root: Path | str | None = None
+) -> bool:
     """Return True if the given URL has already been extracted."""
 
-    blob_root = Path(BLOB_ROOT)
-    index_path = blob_root / "stored_urls.json"
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    index_path = root / "stored_urls.json"
 
     # Prefer checking a dedicated index file if present.
     if index_path.exists():
@@ -98,11 +103,11 @@ def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> 
             print("The text in the url has already been extracted")
             return True
 
-    if not blob_root.exists():
+    if not root.exists():
         return False
 
     # Fallback: scan all stored JSON payloads for the URL.
-    for json_path in blob_root.rglob("*.json"):
+    for json_path in root.rglob("*.json"):
         if json_path == index_path:
             continue
 
