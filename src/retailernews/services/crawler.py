@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, HttpUrl
 from retailernews.config import SiteConfig
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
 
-__all__ = ["Article", "SiteCrawler", "SiteCrawlResult"]
+__all__ = ["Article", "SiteCrawler", "SiteCrawlResult", "crawl"]
 
 BLOB_ROOT = DEFAULT_BLOB_ROOT
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
@@ -184,6 +184,60 @@ def discover_links_from_sitemap(
     return urls
 
 
+def crawl(
+    root_url: str,
+    use_sitemap: bool = False,
+    sitemap_url: str | None = None,
+    filter_path: str | None = None,
+) -> None:
+    """Crawl pages starting from a root URL.
+
+    If ``use_sitemap`` is true, URLs are pulled from the sitemap instead of the
+    root page. The logic mirrors the legacy implementation in
+    ``src/services/crawler.py`` so that both interfaces stay in sync.
+    """
+
+    if use_sitemap:
+        if not sitemap_url:
+            raise ValueError("Sitemap URL must be provided if use_sitemap=True")
+        links = discover_links_from_sitemap(sitemap_url, filter_path)
+    else:
+        links = discover_links_from_page(root_url)
+
+    print(f"Discovered {len(links)} links")
+
+    storage_root = resolve_blob_root(BLOB_ROOT)
+
+    for link in links:
+        path = article_path(link)
+
+        if has_been_extracted(link, blob_root=storage_root):
+            continue  # skip if already stored
+
+        try:
+            response = requests.get(link, headers=HEADERS, timeout=(10, 60))
+            response.raise_for_status()
+            title, text = extract_text(response.text)
+
+            if not text or len(text) < 200:
+                print(f"Too little text, skip: {link}")
+                continue
+
+            payload = {
+                "url": link,
+                "title": title,
+                "fetched_at": datetime.datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "text": text,
+            }
+            store_json(path, payload, blob_root=storage_root)
+            record_stored_url(link, blob_root=storage_root)
+            print(f"Stored {link}")
+        except Exception as exc:  # noqa: BLE001 - broad catch keeps crawl running
+            print(f"Failed {link}: {exc}")
+
+
 class Article(BaseModel):
     """Representation of a discovered article."""
 
@@ -206,6 +260,16 @@ class SiteCrawler:
     def __init__(self, session: requests.Session | None = None) -> None:
         self._session = session or requests.Session()
         self._session.headers.update(DEFAULT_HEADERS)
+
+    # Maintain parity with helper functions from ``src/services/crawler.py``.
+    store_json = staticmethod(store_json)
+    record_stored_url = staticmethod(record_stored_url)
+    has_been_extracted = staticmethod(has_been_extracted)
+    article_path = staticmethod(article_path)
+    extract_text = staticmethod(extract_text)
+    discover_links_from_page = staticmethod(discover_links_from_page)
+    discover_links_from_sitemap = staticmethod(discover_links_from_sitemap)
+    crawl = staticmethod(crawl)
 
     def fetch(self, site: SiteConfig) -> SiteCrawlResult:
         """Fetch a site and return candidate article links."""
