@@ -245,6 +245,7 @@ class Article(BaseModel):
     title: str = Field(default="")
     summary: str | None = Field(default=None)
     topics: List[str] = Field(default_factory=list)
+    text: str | None = Field(default=None, description="Full article text when extracted")
 
 
 class SiteCrawlResult(BaseModel):
@@ -272,13 +273,66 @@ class SiteCrawler:
     crawl = staticmethod(crawl)
 
     def fetch(self, site: SiteConfig) -> SiteCrawlResult:
-        """Fetch a site and return candidate article links."""
+        """Fetch a site, extract article links and retrieve new article content."""
 
-        response = self._session.get(str(site.url), timeout=(10, 60))
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "lxml")
-        articles = list(self._extract_articles(soup, site.topics, str(site.url)))
-        return SiteCrawlResult(site=site, articles=articles)
+        base_url = str(site.url)
+
+        if site.use_sitemap:
+            if not site.sitemap_url:
+                raise ValueError("Sitemap URL must be provided when use_sitemap is True")
+            links = self.discover_links_from_sitemap(str(site.sitemap_url), site.filter_path)
+            discovered_articles = [
+                Article(url=link, topics=list(site.topics), summary=self._build_summary(title="", url=link))
+                for link in links
+            ]
+        else:
+            response = self._session.get(base_url, timeout=(10, 60))
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "lxml")
+            discovered_articles = list(self._extract_articles(soup, site.topics, base_url))
+
+        storage_root = resolve_blob_root(BLOB_ROOT)
+        enriched_articles: List[Article] = []
+
+        for article in discovered_articles:
+            url = str(article.url)
+
+            if self.has_been_extracted(url, blob_root=storage_root):
+                enriched_articles.append(article)
+                continue
+
+            try:
+                article_response = self._session.get(url, timeout=(10, 60))
+                article_response.raise_for_status()
+                title, text = self.extract_text(article_response.text)
+            except requests.RequestException as exc:
+                print(f"Failed {url}: {exc}")
+                continue
+
+            if not text or len(text) < 200:
+                print(f"Too little text, skip: {url}")
+                continue
+
+            article_data = article.model_dump()
+            article_data["title"] = title or article_data.get("title", "")
+            if not article_data.get("summary"):
+                article_data["summary"] = self._build_summary(title=article_data["title"], url=url)
+            article_data["text"] = text
+
+            payload = {
+                "url": url,
+                "title": article_data["title"],
+                "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "text": text,
+            }
+
+            path = self.article_path(url)
+            self.store_json(path, payload, blob_root=storage_root)
+            self.record_stored_url(url, blob_root=storage_root)
+
+            enriched_articles.append(Article(**article_data))
+
+        return SiteCrawlResult(site=site, articles=enriched_articles)
 
     def _extract_articles(
         self, soup: BeautifulSoup, topics: Sequence[str], base_url: str
