@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Iterator, List, Sequence
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Iterator, List, Sequence, Set
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -13,6 +18,10 @@ from retailernews.config import SiteConfig
 
 __all__ = ["Article", "SiteCrawler", "SiteCrawlResult"]
 
+BLOB_ROOT = "./blobstore"
+EXTRACTED_URLS_INDEX = "extracted_urls.json"
+STORED_URLS_INDEX = "stored_urls.json"
+
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -20,6 +29,154 @@ DEFAULT_HEADERS = {
         "Chrome/129.0.0.0 Safari/537.36"
     )
 }
+
+# Alias used by helper functions for parity with ``src/services`` module.
+HEADERS = DEFAULT_HEADERS
+
+
+def store_json(path: str, payload: dict) -> None:
+    """Save payload as JSON into local blob-style folder."""
+
+    full_path = os.path.join(BLOB_ROOT, path)
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    with open(full_path, "w", encoding="utf-8") as file:
+        json.dump(payload, file, ensure_ascii=False, indent=2)
+
+
+def record_stored_url(url: str, index_filename: str = STORED_URLS_INDEX) -> None:
+    """Record a stored article URL inside the blob root index file."""
+
+    blob_root = Path(BLOB_ROOT)
+    blob_root.mkdir(parents=True, exist_ok=True)
+
+    index_path = blob_root / index_filename
+
+    urls: List[str] = []
+    if index_path.exists():
+        try:
+            with index_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            data = None
+
+        if isinstance(data, dict):
+            maybe_urls = data.get("urls")
+            if isinstance(maybe_urls, list):
+                urls = [str(u) for u in maybe_urls]
+        elif isinstance(data, list):
+            urls = [str(u) for u in data]
+
+    if url in urls:
+        return
+
+    urls.append(url)
+
+    with index_path.open("w", encoding="utf-8") as file:
+        json.dump({"urls": urls}, file, ensure_ascii=False, indent=2)
+
+
+def has_been_extracted(url: str, index_filename: str = EXTRACTED_URLS_INDEX) -> bool:
+    """Return True if the given URL has already been extracted."""
+
+    blob_root = Path(BLOB_ROOT)
+    index_path = blob_root / "stored_urls.json"
+
+    # Prefer checking a dedicated index file if present.
+    if index_path.exists():
+        try:
+            with index_path.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            data = None
+
+        if isinstance(data, dict):
+            urls = data.get("urls")
+        else:
+            urls = data
+
+        if isinstance(urls, list) and url in urls:
+            print("The text in the url has already been extracted")
+            return True
+
+    if not blob_root.exists():
+        return False
+
+    # Fallback: scan all stored JSON payloads for the URL.
+    for json_path in blob_root.rglob("*.json"):
+        if json_path == index_path:
+            continue
+
+        try:
+            with json_path.open("r", encoding="utf-8") as file:
+                payload = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        if isinstance(payload, dict) and payload.get("url") == url:
+            return True
+
+    return False
+
+
+def article_path(url: str) -> str:
+    """Generate blob-style path based on URL and current date."""
+
+    host = urlparse(url).netloc
+    datestamp = datetime.datetime.utcnow().strftime("%Y%m%d")
+    url_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    return f"site={host}/{datestamp}/{url_hash}.json"
+
+
+def extract_text(html: str) -> tuple[str, str]:
+    """Extract title and text content from HTML."""
+
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    title = soup.title.get_text(strip=True) if soup.title else ""
+    text = soup.get_text("\n", strip=True)
+    return title, text
+
+
+def discover_links_from_page(root_url: str) -> List[str]:
+    """Fetch a page and extract same-domain sublinks."""
+
+    response = requests.get(root_url, headers=HEADERS, timeout=(10, 60))
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "lxml")
+
+    parsed_root = urlparse(root_url)
+    root_netloc = parsed_root.netloc
+    root_path = parsed_root.path.rstrip("/") + "/"
+
+    found: Set[str] = set()
+    for anchor in soup.find_all("a", href=True):
+        href = anchor["href"].strip()
+        absolute_url = urljoin(root_url, href)
+        parsed = urlparse(absolute_url)
+
+        if parsed.netloc != root_netloc:
+            continue
+        if not parsed.path.startswith(root_path):
+            continue
+
+        found.add(absolute_url.split("#")[0])  # drop fragments
+    return list(found)
+
+
+def discover_links_from_sitemap(
+    sitemap_url: str, filter_path: str | None = None
+) -> List[str]:
+    """Parse sitemap.xml and return links (optionally filtered by path)."""
+
+    response = requests.get(sitemap_url, headers=HEADERS, timeout=(10, 120))
+    print(response)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "xml")
+    urls = [loc.text for loc in soup.find_all("loc")]
+    if filter_path:
+        urls = [url for url in urls if filter_path in url]
+    return urls
 
 
 class Article(BaseModel):
