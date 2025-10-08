@@ -7,6 +7,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass
 from typing import List
 from urllib.parse import urlparse
 
@@ -150,12 +151,22 @@ def store_summary(blob_root: str | Path, url: str, title: str, summary: str) -> 
     print(f"Stored summary for {title or url} at {output_path}")
 
 
+
+@dataclass(slots=True)
+class ArticleSummary:
+    """Summary metadata captured for each processed article."""
+
+    title: str
+    url: str
+    summary: str
+
+
 def map_summarize_articles(
     blob_root: str | Path = DEFAULT_BLOB_ROOT, model: str = "gpt-4o-mini"
-) -> List[str]:
+) -> List[ArticleSummary]:
     """Summarize all articles within the blobstore and store results."""
 
-    summaries: List[str] = []
+    summaries: List[ArticleSummary] = []
     root_path = resolve_blob_root(blob_root)
 
     if not root_path.exists():
@@ -179,19 +190,27 @@ def map_summarize_articles(
         title = article.get("title", "")
         url = article.get("url", "")
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
-        summaries.append(summary)
+        summaries.append(
+            ArticleSummary(title=title or "", url=url or "", summary=summary)
+        )
         store_summary(root_path, url=url or "", title=title or "", summary=summary)
 
     return summaries
 
 
-def reduce_summaries(summaries: List[str], model: str = "gpt-4o-mini") -> str:
+def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini") -> str:
     """Produce an overall digest from individual summaries."""
 
     if not summaries:
         return "No summaries available."
 
-    combined = "\n\n".join(summaries)
+    combined_sections: List[str] = []
+    for entry in summaries:
+        header = entry.title or entry.url or "(untitled article)"
+        source_line = f"Source: {entry.url}" if entry.url else "Source: Unknown"
+        combined_sections.append(f"{header}\n{source_line}\n{entry.summary}")
+
+    combined = "\n\n".join(combined_sections)
     messages = [
         {
             "role": "system",
@@ -223,7 +242,21 @@ def map_reduce_summarize(
 
     summaries = map_summarize_articles(blob_root=blob_root, model=model)
     digest = reduce_summaries(summaries=summaries, model=model)
-    return digest
+
+    if not summaries:
+        return digest
+
+    sources: List[str] = []
+    for entry in summaries:
+        if entry.url:
+            descriptor = entry.title or entry.url
+            sources.append(f"- {descriptor}: {entry.url}")
+
+    if not sources:
+        return digest
+
+    sources_block = "\n".join(sources)
+    return f"{digest}\n\nSources:\n{sources_block}"
 
 
 __all__ = [
@@ -232,4 +265,5 @@ __all__ = [
     "reduce_summaries",
     "store_summary",
     "summarize_single_article",
+    "ArticleSummary",
 ]
