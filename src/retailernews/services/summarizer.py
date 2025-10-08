@@ -16,6 +16,8 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency during tes
     OpenAI = None  # type: ignore[assignment]
     _client = None
 else:
+    _client = None
+
     def _load_openai_api_key() -> str | None:
         env_key = os.environ.get("OPENAI_API_KEY")
         if env_key:
@@ -48,15 +50,32 @@ else:
 
         return None
 
-    _client = OpenAI(api_key=_load_openai_api_key())
+    def _initialise_client() -> "OpenAI":
+        api_key = _load_openai_api_key()
+        if api_key:
+            return OpenAI(api_key=api_key)
+        # Let the OpenAI client pick up configuration from its defaults, but provide a clearer
+        # error message if that still fails.
+        return OpenAI()
 
 
 def _get_client() -> "OpenAI":
-    if _client is None:  # pragma: no cover - runtime guard
+    if OpenAI is None:  # pragma: no cover - runtime guard
         raise RuntimeError(
             "OpenAI client is not available. Install the 'openai' package and set OPENAI_API_KEY "
             "(either in the environment or in a .env file)."
         )
+
+    global _client
+    if _client is None:
+        try:
+            _client = _initialise_client()
+        except Exception as exc:  # pragma: no cover - defensive guard
+            raise RuntimeError(
+                "Failed to initialise the OpenAI client. Ensure OPENAI_API_KEY is configured either in the "
+                "environment or in a .env file."
+            ) from exc
+
     return _client
 
 
@@ -64,29 +83,42 @@ def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mi
     """Summarize a single article into concise bullet points."""
 
     truncated_text = text[:4000] if text else ""
+
     messages = [
         {
             "role": "system",
-            "content": "You are an assistant that summarizes retail industry news into concise bullet points.",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "You are an assistant that summarizes retail industry news into concise bullet points.",
+                }
+            ],
         },
         {
             "role": "user",
-            "content": (
-                "Summarize the following article into 3-5 short bullet points focusing on key facts and implications "
-                "for retail executives.\n\nTitle: {title}\n\nContent:\n{content}".format(
-                    title=title or "(untitled)",
-                    content=truncated_text,
-                ),
-            ),
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "Summarize the following article into 3-5 short bullet points focusing on key facts and "
+                        "implications for retail executives.\n\nTitle: {title}\n\nContent:\n{content}".format(
+                            title=title or "(untitled)",
+                            content=truncated_text,
+                        )
+                    ),
+                }
+            ],
         },
     ]
 
+    print(f"Summarizing article: {title or 'Untitled'}")
     client = _get_client()
     response = client.chat.completions.create(
         model=model,
         messages=messages,
         temperature=0.3,
     )
+
     return response.choices[0].message.content.strip()
 
 
@@ -112,6 +144,8 @@ def store_summary(blob_root: str, url: str, title: str, summary: str) -> None:
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
+    print(f"Stored summary for {title or url} at {output_path}")
+
 
 def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-mini") -> List[str]:
     """Summarize all articles within the blobstore and store results."""
@@ -120,34 +154,25 @@ def map_summarize_articles(blob_root: str = "./blobstore", model: str = "gpt-4o-
     root_path = Path(blob_root)
 
     if not root_path.exists():
+        print(f"Blob root {blob_root} does not exist. Nothing to summarize.")
         return summaries
 
-    summaries_dir = root_path / "summaries"
-    if summaries_dir.exists():
-        for summary_path in summaries_dir.rglob("*.json"):
-            try:
-                with summary_path.open("r", encoding="utf-8") as f:
-                    summary_payload = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-            summary_text = summary_payload.get("summary")
-            if summary_text:
-                summaries.append(summary_text)
-
     for article_path in root_path.rglob("*.json"):
+
         if "summaries" in article_path.parts:
+            continue
+        if "stored_urls" in article_path.name:
             continue
         try:
             with article_path.open("r", encoding="utf-8") as f:
                 article = json.load(f)
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"Skipping {article_path}: {exc}")
             continue
-
+        print(article_path)
         text = article.get("text", "")
         title = article.get("title", "")
         url = article.get("url", "")
-
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
         summaries.append(summary)
         store_summary(blob_root, url=url or "", title=title or "", summary=summary)
