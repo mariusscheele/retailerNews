@@ -214,14 +214,20 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
     messages = [
         {
             "role": "system",
-            "content": "You craft executive-ready digests highlighting major retail trends.",
+            "content": (
+                "You craft executive-ready digests highlighting major retail trends. "
+                "Always cite supporting source URLs inline immediately after the relevant sentence "
+                "using the format (Source: https://example.com). Do not place sources in a "
+                "standalone list."
+            ),
         },
         {
             "role": "user",
             "content": (
                 "Using the following bullet-point summaries from recent retail news, produce a cohesive digest "
                 "that highlights key themes, risks, and opportunities for retail executives. Keep it concise and "
-                "action-oriented.\n\nSummaries:\n{summaries}".format(summaries=combined)
+                "action-oriented. Cite the exact source URL inline immediately after the supporting statement and "
+                "avoid grouping sources at the end.\n\nSummaries:\n{summaries}".format(summaries=combined)
             ),
         },
     ]
@@ -243,20 +249,7 @@ def map_reduce_summarize(
     summaries = map_summarize_articles(blob_root=blob_root, model=model)
     digest = reduce_summaries(summaries=summaries, model=model)
 
-    if not summaries:
-        return digest
-
-    sources: List[str] = []
-    for entry in summaries:
-        if entry.url:
-            descriptor = entry.title or entry.url
-            sources.append(f"- {descriptor}: {entry.url}")
-
-    if not sources:
-        return digest
-
-    sources_block = "\n".join(sources)
-    return f"{digest}\n\nSources:\n{sources_block}"
+    return digest
 
 
 __all__ = [
