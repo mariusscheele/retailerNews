@@ -8,9 +8,18 @@ from typing import Iterable, List
 
 from pydantic import BaseModel, Field, HttpUrl, ValidationError
 
-__all__ = ["AppConfig", "SiteConfig", "DEFAULT_CONFIG_PATH"]
+__all__ = [
+    "AppConfig",
+    "SiteConfig",
+    "DEFAULT_CONFIG_PATH",
+    "TopicConfig",
+    "CategoryConfig",
+    "CategoriesConfig",
+    "DEFAULT_CATEGORIES_PATH",
+]
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "data" / "sites.json"
+DEFAULT_CATEGORIES_PATH = Path(__file__).resolve().parents[2] / "data" / "categories.json"
 
 
 class SiteConfig(BaseModel):
@@ -31,6 +40,63 @@ class SiteConfig(BaseModel):
         default=None,
         description="Optional path fragment used to filter sitemap entries",
     )
+
+
+class TopicConfig(BaseModel):
+    """Configuration for a topic that may be tagged against summaries."""
+
+    name: str = Field(..., description="Human friendly topic name")
+    keywords: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional list of keywords that should map an article or summary to this topic. "
+            "When omitted the topic name is used as the keyword."
+        ),
+    )
+
+    def keyword_set(self) -> set[str]:
+        """Return the set of keywords (including the topic name)."""
+
+        values = {self.name}
+        values.update(self.keywords)
+        return {keyword for keyword in values if keyword}
+
+
+class CategoryConfig(BaseModel):
+    """A high level category and its associated topics."""
+
+    name: str = Field(..., description="Category label")
+    topics: List[TopicConfig] = Field(default_factory=list)
+
+
+class CategoriesConfig(BaseModel):
+    """Collection of categories/topics that can be applied to summaries."""
+
+    categories: List[CategoryConfig] = Field(default_factory=list)
+
+    @classmethod
+    def from_file(cls, path: Path | str | None = None) -> "CategoriesConfig":
+        """Load category configuration from disk, returning an empty config if missing."""
+
+        config_path = Path(path) if path else DEFAULT_CATEGORIES_PATH
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raise
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in configuration file: {config_path}") from exc
+
+        try:
+            return cls.model_validate(data)
+        except ValidationError as exc:
+            raise ValueError(f"Configuration file is invalid: {config_path}\n{exc}") from exc
+
+    def dump(self, path: Path | str | None = None) -> None:
+        """Persist category configuration back to disk as JSON."""
+
+        config_path = Path(path) if path else DEFAULT_CATEGORIES_PATH
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
 
 
 class AppConfig(BaseModel):
