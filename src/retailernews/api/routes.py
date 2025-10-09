@@ -31,10 +31,17 @@ class CrawlResponse(BaseModel):
     errors: List[CrawlError] = Field(default_factory=list)
 
 
+class CategorySummary(BaseModel):
+    name: str
+    slug: str
+    summary: str
+
+
 class SummariesResponse(BaseModel):
     digest: str
     blob_root: str
     model: str
+    categories: List[CategorySummary] = Field(default_factory=list)
 
 
 @router.post("/crawl", response_model=CrawlResponse)
@@ -71,9 +78,17 @@ async def trigger_summarizer(
     """Execute the map-reduce summariser pipeline."""
 
     try:
-        digest = await run_in_threadpool(map_reduce_summarize, blob_root, model)
+        result = await run_in_threadpool(map_reduce_summarize, blob_root, model)
     except Exception as exc:  # pragma: no cover - defensive guard for external service errors
         logger.exception("Summarisation failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return SummariesResponse(digest=digest, blob_root=blob_root, model=model)
+    return SummariesResponse(
+        digest=result.digest,
+        blob_root=blob_root,
+        model=model,
+        categories=[
+            CategorySummary(name=category.name, slug=category.slug, summary=category.summary)
+            for category in result.categories
+        ],
+    )

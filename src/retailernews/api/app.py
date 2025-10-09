@@ -298,11 +298,7 @@ INDEX_HTML = """
           <div class=\"summary-card\">
             <header class=\"summary-header\">
               <h3>Discover the latest insights</h3>
-              <div class=\"category-buttons\">
-                <button type=\"button\" data-category=\"ecommerce\">E-commerce</button>
-                <button type=\"button\" data-category=\"store\">Store operations</button>
-                <button type=\"button\" data-category=\"customer\">Customer experience</button>
-              </div>
+              <div class=\"category-buttons\" id=\"category-buttons\"></div>
             </header>
             <article class=\"digest-article\">
               <h4 id=\"article-title\">Latest highlights</h4>
@@ -319,34 +315,69 @@ INDEX_HTML = """
       const statusEl = document.getElementById("status");
       const resultsEl = document.getElementById("results");
       const summarySection = document.getElementById("summary-section");
-      const categoryButtons = document.querySelectorAll("[data-category]");
+      const categoryButtonsContainer = document.getElementById("category-buttons");
       const articleTitle = document.getElementById("article-title");
       const articleBody = document.getElementById("article-body");
 
-      const categoryTitles = {
-        ecommerce: "E-commerce highlights",
-        store: "Store operations spotlight",
-        customer: "Customer experience trends",
-      };
-
-      let digestCache = "";
+      const categoryDigestCache = new Map();
+      let categoryButtons = [];
 
       function setActiveCategory(category) {
+        const entry = categoryDigestCache.get(category);
+
         categoryButtons.forEach((button) => {
           const isActive = button.dataset.category === category;
           button.classList.toggle("is-active", isActive);
         });
 
-        if (digestCache) {
-          articleTitle.textContent = categoryTitles[category] || "Latest highlights";
-          articleBody.textContent = digestCache;
+        if (!entry) {
+          articleTitle.textContent = "Latest highlights";
+          articleBody.textContent = "Select a category to view its summary.";
+          return;
+        }
+
+        articleTitle.textContent = `${entry.name} highlights`;
+        const summaryText = (entry.summary || "").trim();
+        articleBody.textContent = summaryText || "No updates available for this category yet.";
+      }
+
+      function renderCategoryButtons(categories) {
+        categoryDigestCache.clear();
+        categoryButtonsContainer.innerHTML = "";
+        categoryButtons = [];
+
+        categories.forEach((category) => {
+          categoryDigestCache.set(category.slug, {
+            name: category.name,
+            summary: category.summary,
+          });
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.category = category.slug;
+          button.textContent = category.name;
+          button.addEventListener("click", () => setActiveCategory(category.slug));
+          categoryButtonsContainer.appendChild(button);
+          categoryButtons.push(button);
+        });
+
+        if (categoryButtons.length > 0) {
+          setActiveCategory(categories[0].slug);
+        } else {
+          articleTitle.textContent = "Latest highlights";
+          articleBody.textContent = "No category summaries available yet.";
         }
       }
 
       async function callEndpoint(button, url, pendingMessage, onSuccess) {
         statusEl.textContent = pendingMessage;
         resultsEl.hidden = true;
+        resultsEl.textContent = "";
         summarySection.hidden = true;
+        categoryButtonsContainer.innerHTML = "";
+        categoryDigestCache.clear();
+        categoryButtons = [];
+        articleTitle.textContent = "Latest highlights";
         articleBody.textContent = "";
         button.disabled = true;
 
@@ -385,25 +416,24 @@ INDEX_HTML = """
           "Building digest...",
           (payload) => {
             const digest = payload?.digest?.trim();
+            const categories = Array.isArray(payload?.categories)
+              ? payload.categories
+              : [];
+
             if (digest) {
-              digestCache = digest;
-              summarySection.hidden = false;
-              setActiveCategory("ecommerce");
-              summarySection.scrollIntoView({ behavior: "smooth", block: "start" });
+              resultsEl.hidden = false;
+              resultsEl.textContent = digest;
             } else {
               resultsEl.hidden = false;
               resultsEl.textContent = "No digest content available.";
             }
+
+            summarySection.hidden = false;
+            renderCategoryButtons(categories);
+            summarySection.scrollIntoView({ behavior: "smooth", block: "start" });
           }
         )
       );
-
-      categoryButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-          const category = button.dataset.category;
-          setActiveCategory(category);
-        });
-      });
     </script>
   </body>
 </html>

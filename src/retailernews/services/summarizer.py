@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
@@ -177,6 +178,23 @@ class ArticleSummary:
     topics: list[str]
 
 
+@dataclass(slots=True)
+class CategoryDigest:
+    """Digest of summaries associated with a specific category."""
+
+    name: str
+    slug: str
+    summary: str
+
+
+@dataclass(slots=True)
+class MapReduceResult:
+    """Container for the outputs of the map-reduce summarisation pipeline."""
+
+    digest: str
+    categories: list[CategoryDigest]
+
+
 def _load_categories_config() -> CategoriesConfig:
     """Attempt to load the category configuration file."""
 
@@ -214,6 +232,46 @@ def classify_summary(
                 break
 
     return (sorted(matched_categories), sorted(matched_topics))
+
+
+_SLUGIFY_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify_category_name(name: str) -> str:
+    """Generate a URL-friendly slug for the provided category name."""
+
+    slug = _SLUGIFY_RE.sub("-", name.lower()).strip("-")
+    return slug or "category"
+
+
+def _build_category_digests(
+    summaries: List[ArticleSummary], config: CategoriesConfig
+) -> list[CategoryDigest]:
+    """Produce concatenated digests for each configured category."""
+
+    digests: list[CategoryDigest] = []
+
+    for category in config.categories:
+        matched = [entry for entry in summaries if category.name in entry.categories]
+
+        if matched:
+            combined_sections = []
+            for entry in matched:
+                header = entry.title or entry.url or "(untitled article)"
+                combined_sections.append(f"{header}\n{entry.summary}")
+            summary_text = "\n\n".join(combined_sections)
+        else:
+            summary_text = "No updates available for this category yet."
+
+        digests.append(
+            CategoryDigest(
+                name=category.name,
+                slug=_slugify_category_name(category.name),
+                summary=summary_text,
+            )
+        )
+
+    return digests
 
 
 def map_summarize_articles(
@@ -314,13 +372,15 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
 
 def map_reduce_summarize(
     blob_root: str | Path = DEFAULT_BLOB_ROOT, model: str = "gpt-4o-mini"
-) -> str:
+) -> MapReduceResult:
     """Run the full map-reduce summarization pipeline."""
 
     summaries = map_summarize_articles(blob_root=blob_root, model=model)
     digest = reduce_summaries(summaries=summaries, model=model)
+    categories_config = _load_categories_config()
+    category_digests = _build_category_digests(summaries, categories_config)
 
-    return digest
+    return MapReduceResult(digest=digest, categories=category_digests)
 
 
 __all__ = [
@@ -331,4 +391,6 @@ __all__ = [
     "summarize_single_article",
     "ArticleSummary",
     "classify_summary",
+    "CategoryDigest",
+    "MapReduceResult",
 ]
