@@ -23,6 +23,23 @@
         {"name": "Personalization", "keywords": ["personalized", "tailored", "recommendation"]},
         {"name": "Customer Service", "keywords": ["customer service", "support", "call center"]}
       ]
+    },
+    {
+      "name": "Economy",
+      "topics": [
+        {
+          "name": "Mergers & Acquisitions",
+          "keywords": ["merger", "acquisition", "m&a", "takeover", "deal"]
+        },
+        {
+          "name": "Investment Activity",
+          "keywords": ["investment", "funding", "capital raise", "private equity"]
+        },
+        {
+          "name": "Macroeconomic Trends",
+          "keywords": ["inflation", "interest rate", "economic outlook", "consumer spending"]
+        }
+      ]
     }
   ]
 }

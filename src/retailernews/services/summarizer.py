@@ -244,8 +244,57 @@ def _slugify_category_name(name: str) -> str:
     return slug or "category"
 
 
+def _summarize_category_articles(
+    entries: List[ArticleSummary], model: str = "gpt-4o-mini"
+) -> str:
+    """Generate a cohesive summary for a collection of category articles."""
+
+    if not entries:
+        return "No updates available for this category yet."
+
+    combined_sections: list[str] = []
+    for entry in entries:
+        header = entry.title or entry.url or "(untitled article)"
+        source_line = f"Source: {entry.url}" if entry.url else "Source: Unknown"
+        combined_sections.append(
+            f"{header}\n{source_line}\nSummary:\n{entry.summary}".strip()
+        )
+
+    combined_text = "\n\n".join(combined_sections)
+    truncated_text = combined_text[:6000]
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an assistant that synthesises retail news into concise digests for executives. "
+                "Write a single cohesive summary that blends the key developments, risks, and opportunities "
+                "across the provided updates. Always reference supporting URLs inline using the format "
+                "(Source: https://example.com)."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Create a category summary that highlights what retail leaders should know. Keep it focused "
+                "and action-oriented while citing the relevant source URL immediately after each fact.\n\n"
+                f"Article updates:\n{truncated_text}"
+            ),
+        },
+    ]
+
+    client = _get_client()
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.3,
+    )
+
+    return response.choices[0].message.content.strip()
+
+
 def _build_category_digests(
-    summaries: List[ArticleSummary], config: CategoriesConfig
+    summaries: List[ArticleSummary], config: CategoriesConfig, *, model: str = "gpt-4o-mini"
 ) -> list[CategoryDigest]:
     """Produce concatenated digests for each configured category."""
 
@@ -255,11 +304,7 @@ def _build_category_digests(
         matched = [entry for entry in summaries if category.name in entry.categories]
 
         if matched:
-            combined_sections = []
-            for entry in matched:
-                header = entry.title or entry.url or "(untitled article)"
-                combined_sections.append(f"{header}\n{entry.summary}")
-            summary_text = "\n\n".join(combined_sections)
+            summary_text = _summarize_category_articles(matched, model=model)
         else:
             summary_text = "No updates available for this category yet."
 
@@ -378,7 +423,7 @@ def map_reduce_summarize(
     summaries = map_summarize_articles(blob_root=blob_root, model=model)
     digest = reduce_summaries(summaries=summaries, model=model)
     categories_config = _load_categories_config()
-    category_digests = _build_category_digests(summaries, categories_config)
+    category_digests = _build_category_digests(summaries, categories_config, model=model)
 
     return MapReduceResult(digest=digest, categories=category_digests)
 
