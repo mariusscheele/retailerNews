@@ -16,58 +16,94 @@ INDEX_HTML = """
     <title>Retailer News Crawler</title>
     <style>
       :root {
-        color-scheme: light dark;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;
-        background: #f4f4f5;
-        color: #111827;
+        color-scheme: only light;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #eef2f7;
+        color: #0f172a;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
 
       body {
         margin: 0;
-        display: flex;
+        background: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%);
         min-height: 100vh;
-        justify-content: center;
-        align-items: center;
+        display: flex;
       }
 
-      .card {
-        background: white;
-        border-radius: 12px;
-        padding: 32px;
-        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
-        max-width: 460px;
+      .app-shell {
+        display: grid;
+        grid-template-columns: minmax(240px, 300px) 1fr;
         width: 100%;
+        min-height: 100vh;
       }
 
-      h1 {
-        margin-top: 0;
-        margin-bottom: 16px;
+      .sidebar {
+        background: #111827;
+        color: #f8fafc;
+        padding: 48px 36px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+        box-shadow: 8px 0 32px rgba(15, 23, 42, 0.18);
+      }
+
+      .sidebar h1 {
         font-size: 1.75rem;
-        color: #1e293b;
+        margin: 0;
+        letter-spacing: -0.02em;
       }
 
-      p {
-        margin-top: 0;
-        margin-bottom: 24px;
-        color: #475569;
+      .sidebar p {
+        margin: 0;
+        color: rgba(248, 250, 252, 0.72);
+        line-height: 1.6;
+      }
+
+      .sidebar-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
       }
 
       button {
         appearance: none;
         border: none;
-        border-radius: 9999px;
-        padding: 12px 28px;
+        border-radius: 999px;
+        padding: 14px 22px;
         font-size: 1rem;
         font-weight: 600;
         cursor: pointer;
-        background: linear-gradient(135deg, #2563eb, #4f46e5);
-        color: white;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
+      }
+
+      .button-primary {
+        background: linear-gradient(135deg, #6366f1, #4338ca);
+        color: white;
+        box-shadow: 0 16px 30px rgba(99, 102, 241, 0.35);
+      }
+
+      .button-primary:not(:disabled):hover {
+        transform: translateY(-1px);
+        box-shadow: 0 20px 36px rgba(99, 102, 241, 0.4);
+      }
+
+      .button-secondary {
+        background: rgba(248, 250, 252, 0.08);
+        color: #f8fafc;
+        border: 1px solid rgba(248, 250, 252, 0.16);
+      }
+
+      .button-secondary:not(:disabled):hover {
+        background: rgba(248, 250, 252, 0.18);
       }
 
       button:disabled {
@@ -76,98 +112,242 @@ INDEX_HTML = """
         box-shadow: none;
       }
 
-      button:not(:disabled):hover {
-        transform: translateY(-1px);
-        box-shadow: 0 14px 28px rgba(37, 99, 235, 0.3);
+      .status {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: rgba(248, 250, 252, 0.72);
+        min-height: 1.4em;
       }
 
-      .actions {
+      .content {
+        padding: 64px clamp(32px, 5vw, 80px);
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        margin-bottom: 20px;
+        gap: 32px;
       }
 
-      pre {
+      .hero {
+        max-width: 720px;
+      }
+
+      .hero h2 {
+        font-size: clamp(2rem, 4vw, 2.75rem);
+        margin: 0 0 16px;
+        color: #0f172a;
+        letter-spacing: -0.03em;
+      }
+
+      .hero p {
+        margin: 0;
+        color: #475569;
+        line-height: 1.7;
+        font-size: 1.05rem;
+      }
+
+      .summary-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .summary-card {
+        background: white;
+        border-radius: 24px;
+        padding: clamp(24px, 4vw, 40px);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+      }
+
+      .summary-header {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .summary-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #1e293b;
+      }
+
+      .category-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .category-buttons button {
+        background: #f1f5f9;
+        color: #1e293b;
+        border-radius: 999px;
+        padding: 10px 20px;
+        font-weight: 600;
+        border: 1px solid transparent;
+      }
+
+      .category-buttons button:hover {
+        background: #e2e8f0;
+      }
+
+      .category-buttons button.is-active {
         background: #0f172a;
         color: #f8fafc;
-        padding: 16px;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        max-height: 200px;
-        overflow: auto;
+        border-color: #0f172a;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
       }
 
-      .status {
-        margin-top: 16px;
-        font-weight: 600;
-      }
-
-      .digest-panel {
-        margin-top: 24px;
+      .digest-article {
+        margin: 0;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 16px;
+        line-height: 1.75;
+        color: #334155;
       }
 
-      .digest-panel h2 {
+      .digest-article h4 {
         margin: 0;
         font-size: 1.25rem;
-        color: #1f2937;
+        color: #0f172a;
+        letter-spacing: -0.01em;
       }
 
-      .digest-box {
-        width: 100%;
-        min-height: 180px;
-        padding: 16px;
-        border-radius: 12px;
-        border: 1px solid rgba(15, 23, 42, 0.1);
-        background: #f8fafc;
-        color: #0f172a;
-        font-size: 1rem;
-        line-height: 1.5;
-        resize: vertical;
-        box-shadow: inset 0 2px 8px rgba(15, 23, 42, 0.08);
+      .digest-body {
+        font-size: 1.05rem;
+        white-space: pre-wrap;
+      }
+
+      .log-output {
+        background: rgba(15, 23, 42, 0.88);
+        color: #f8fafc;
+        padding: 16px 20px;
+        border-radius: 16px;
+        font-size: 0.85rem;
+        max-height: 240px;
+        overflow: auto;
+        box-shadow: inset 0 4px 12px rgba(15, 23, 42, 0.25);
+      }
+
+      @media (max-width: 900px) {
+        .app-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          padding: 28px 24px;
+        }
+
+        .sidebar-actions {
+          flex-direction: row;
+        }
+
+        .content {
+          padding: 32px 24px 48px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .sidebar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 20px;
+        }
+
+        .sidebar-actions {
+          width: 100%;
+          flex-direction: column;
+        }
+
+        .hero h2 {
+          font-size: 2rem;
+        }
       }
     </style>
   </head>
   <body>
-    <main class=\"card\">
-      <h1>Retailer News Toolkit</h1>
-      <p>
-        Use the controls below to fetch the latest retailer news articles and to
-        create an executive-ready digest of stored content.
-      </p>
-      <div class=\"actions\">
-        <button id=\"run-crawler\">
-          <span aria-hidden=\"true\">🕷️</span>
-          Run crawler
-        </button>
-        <button id=\"run-summarizer\">
-          <span aria-hidden=\"true\">📝</span>
-          Build summary
-        </button>
-      </div>
-      <div class=\"status\" id=\"status\"></div>
-      <pre id=\"results\" hidden></pre>
-      <section class=\"digest-panel\" id=\"digest-panel\" hidden>
-        <h2>Executive Digest</h2>
-        <textarea class=\"digest-box\" id=\"digest-text\" readonly></textarea>
-      </section>
-    </main>
+    <div class=\"app-shell\">
+      <aside class=\"sidebar\">
+        <div>
+          <h1>Retailer News Toolkit</h1>
+          <p>Keep your leadership team informed with curated daily insights.</p>
+        </div>
+        <div class=\"sidebar-actions\">
+          <button class=\"button-primary\" id=\"run-crawler\">
+            <span aria-hidden=\"true\">🕷️</span>
+            Run crawler
+          </button>
+          <button class=\"button-secondary\" id=\"run-summarizer\">
+            <span aria-hidden=\"true\">📝</span>
+            Build summary
+          </button>
+        </div>
+        <div class=\"status\" id=\"status\"></div>
+      </aside>
+      <main class=\"content\">
+        <section class=\"hero\">
+          <h2>Welcome to our page for latest news within beauty industry</h2>
+          <p>
+            Explore curated highlights from the worlds of e-commerce, store operations,
+            and customer experience, powered by our automated retailer news crawler.
+          </p>
+        </section>
+        <section class=\"summary-section\" id=\"summary-section\" hidden>
+          <div class=\"summary-card\">
+            <header class=\"summary-header\">
+              <h3>Discover the latest insights</h3>
+              <div class=\"category-buttons\">
+                <button type=\"button\" data-category=\"ecommerce\">E-commerce</button>
+                <button type=\"button\" data-category=\"store\">Store operations</button>
+                <button type=\"button\" data-category=\"customer\">Customer experience</button>
+              </div>
+            </header>
+            <article class=\"digest-article\">
+              <h4 id=\"article-title\">Latest highlights</h4>
+              <p class=\"digest-body\" id=\"article-body\"></p>
+            </article>
+          </div>
+        </section>
+        <pre class=\"log-output\" id=\"results\" hidden></pre>
+      </main>
+    </div>
     <script>
       const crawlerButton = document.getElementById("run-crawler");
       const summarizerButton = document.getElementById("run-summarizer");
       const statusEl = document.getElementById("status");
       const resultsEl = document.getElementById("results");
-      const digestPanel = document.getElementById("digest-panel");
-      const digestText = document.getElementById("digest-text");
+      const summarySection = document.getElementById("summary-section");
+      const categoryButtons = document.querySelectorAll("[data-category]");
+      const articleTitle = document.getElementById("article-title");
+      const articleBody = document.getElementById("article-body");
+
+      const categoryTitles = {
+        ecommerce: "E-commerce highlights",
+        store: "Store operations spotlight",
+        customer: "Customer experience trends",
+      };
+
+      let digestCache = "";
+
+      function setActiveCategory(category) {
+        categoryButtons.forEach((button) => {
+          const isActive = button.dataset.category === category;
+          button.classList.toggle("is-active", isActive);
+        });
+
+        if (digestCache) {
+          articleTitle.textContent = categoryTitles[category] || "Latest highlights";
+          articleBody.textContent = digestCache;
+        }
+      }
 
       async function callEndpoint(button, url, pendingMessage, onSuccess) {
         statusEl.textContent = pendingMessage;
         resultsEl.hidden = true;
-        digestPanel.hidden = true;
-        digestText.value = "";
+        summarySection.hidden = true;
+        articleBody.textContent = "";
         button.disabled = true;
 
         try {
@@ -188,7 +368,7 @@ INDEX_HTML = """
         } catch (error) {
           statusEl.textContent = `Error: ${error.message}`;
           resultsEl.hidden = true;
-          digestPanel.hidden = true;
+          summarySection.hidden = true;
         } finally {
           button.disabled = false;
         }
@@ -206,8 +386,10 @@ INDEX_HTML = """
           (payload) => {
             const digest = payload?.digest?.trim();
             if (digest) {
-              digestText.value = digest;
-              digestPanel.hidden = false;
+              digestCache = digest;
+              summarySection.hidden = false;
+              setActiveCategory("ecommerce");
+              summarySection.scrollIntoView({ behavior: "smooth", block: "start" });
             } else {
               resultsEl.hidden = false;
               resultsEl.textContent = "No digest content available.";
@@ -215,6 +397,13 @@ INDEX_HTML = """
           }
         )
       );
+
+      categoryButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const category = button.dataset.category;
+          setActiveCategory(category);
+        });
+      });
     </script>
   </body>
 </html>
