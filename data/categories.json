@@ -1,0 +1,28 @@
+{
+  "categories": [
+    {
+      "name": "E-commerce",
+      "topics": [
+        {"name": "Online Sales", "keywords": ["e-commerce", "online sales", "digital storefront"]},
+        {"name": "Digital Marketing", "keywords": ["marketing", "digital campaign", "ad spend"]},
+        {"name": "Marketplace Strategy", "keywords": ["marketplace", "third-party", "amazon"]}
+      ]
+    },
+    {
+      "name": "Store Operations",
+      "topics": [
+        {"name": "Supply Chain", "keywords": ["supply chain", "logistics", "distribution"]},
+        {"name": "Inventory Management", "keywords": ["inventory", "stock levels", "replenishment"]},
+        {"name": "Store Formats", "keywords": ["store format", "brick-and-mortar", "physical store"]}
+      ]
+    },
+    {
+      "name": "Customer Experience",
+      "topics": [
+        {"name": "Loyalty Programs", "keywords": ["loyalty", "rewards", "membership"]},
+        {"name": "Personalization", "keywords": ["personalized", "tailored", "recommendation"]},
+        {"name": "Customer Service", "keywords": ["customer service", "support", "call center"]}
+      ]
+    }
+  ]
+}

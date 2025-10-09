@@ -12,6 +12,7 @@ from typing import List
 from urllib.parse import urlparse
 
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
+from retailernews.config import CategoriesConfig
 
 try:  # pragma: no cover - optional dependency during tests
     from openai import OpenAI
@@ -125,7 +126,15 @@ def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mi
     return response.choices[0].message.content.strip()
 
 
-def store_summary(blob_root: str | Path, url: str, title: str, summary: str) -> None:
+def store_summary(
+    blob_root: str | Path,
+    url: str,
+    title: str,
+    summary: str,
+    *,
+    categories: list[str] | None = None,
+    topics: list[str] | None = None,
+) -> None:
     """Persist the summary JSON into the summaries blobstore."""
 
     root = resolve_blob_root(blob_root)
@@ -144,6 +153,11 @@ def store_summary(blob_root: str | Path, url: str, title: str, summary: str) -> 
         "summarized_at": datetime.utcnow().isoformat(),
     }
 
+    if categories:
+        payload["categories"] = categories
+    if topics:
+        payload["topics"] = topics
+
     output_path = summary_dir / f"{sha}.json"
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
@@ -159,6 +173,47 @@ class ArticleSummary:
     title: str
     url: str
     summary: str
+    categories: list[str]
+    topics: list[str]
+
+
+def _load_categories_config() -> CategoriesConfig:
+    """Attempt to load the category configuration file."""
+
+    try:
+        return CategoriesConfig.from_file()
+    except FileNotFoundError:
+        return CategoriesConfig()
+    except ValueError as exc:
+        print(f"Category configuration could not be loaded: {exc}")
+        return CategoriesConfig()
+
+
+def classify_summary(
+    summary: str, article_text: str, config: CategoriesConfig
+) -> tuple[list[str], list[str]]:
+    """Return matching categories and topics based on configured keywords."""
+
+    if not config.categories:
+        return ([], [])
+
+    haystacks = [summary.lower(), article_text.lower()]
+    matched_categories: set[str] = set()
+    matched_topics: set[str] = set()
+
+    for category in config.categories:
+        for topic in category.topics:
+            keywords = {keyword.lower() for keyword in topic.keyword_set()}
+            keywords.discard("")
+            if not keywords:
+                continue
+
+            if any(keyword in haystack for keyword in keywords for haystack in haystacks):
+                matched_categories.add(category.name)
+                matched_topics.add(topic.name)
+                break
+
+    return (sorted(matched_categories), sorted(matched_topics))
 
 
 def map_summarize_articles(
@@ -172,6 +227,8 @@ def map_summarize_articles(
     if not root_path.exists():
         print(f"Blob root {blob_root} does not exist. Nothing to summarize.")
         return summaries
+
+    categories_config = _load_categories_config()
 
     for article_path in root_path.rglob("*.json"):
 
@@ -190,10 +247,24 @@ def map_summarize_articles(
         title = article.get("title", "")
         url = article.get("url", "")
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
+        categories, topics = classify_summary(summary, text or "", categories_config)
         summaries.append(
-            ArticleSummary(title=title or "", url=url or "", summary=summary)
+            ArticleSummary(
+                title=title or "",
+                url=url or "",
+                summary=summary,
+                categories=categories,
+                topics=topics,
+            )
         )
-        store_summary(root_path, url=url or "", title=title or "", summary=summary)
+        store_summary(
+            root_path,
+            url=url or "",
+            title=title or "",
+            summary=summary,
+            categories=categories,
+            topics=topics,
+        )
 
     return summaries
 
@@ -259,4 +330,5 @@ __all__ = [
     "store_summary",
     "summarize_single_article",
     "ArticleSummary",
+    "classify_summary",
 ]
