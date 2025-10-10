@@ -207,10 +207,10 @@ def _load_categories_config() -> CategoriesConfig:
         return CategoriesConfig()
 
 
-def classify_summary(
+def _classify_with_keywords(
     summary: str, article_text: str, config: CategoriesConfig
 ) -> tuple[list[str], list[str]]:
-    """Return matching categories and topics based on configured keywords."""
+    """Return matching categories and topics based purely on keyword rules."""
 
     if not config.categories:
         return ([], [])
@@ -232,6 +232,111 @@ def classify_summary(
                 break
 
     return (sorted(matched_categories), sorted(matched_topics))
+
+
+def _classify_with_openai(
+    summary: str, article_text: str, config: CategoriesConfig, *, model: str
+) -> list[str]:
+    """Ask OpenAI to determine which configured categories apply to the article."""
+
+    if not config.categories:
+        return []
+
+    client = _get_client()
+
+    catalogue: list[str] = []
+    for category in config.categories:
+        keyword_pool: set[str] = set()
+        for topic in category.topics:
+            keyword_pool.update(topic.keyword_set())
+        keyword_sample = ", ".join(sorted(keyword_pool)[:8]) if keyword_pool else ""
+        if keyword_sample:
+            catalogue.append(f"- {category.name}: related to {keyword_sample}")
+        else:
+            catalogue.append(f"- {category.name}")
+
+    prompt = (
+        "Decide which of the listed retail focus areas apply to the article. "
+        "Respond with a JSON object containing a `categories` array of the exact category names that apply. "
+        "If none apply, return an empty array.\n\nAvailable categories:\n{catalogue}\n\n"
+        "Article summary:\n{summary}\n\nArticle excerpt:\n{article}".format(
+            catalogue="\n".join(catalogue) or "(none provided)",
+            summary=(summary or "(empty)").strip(),
+            article=(article_text or "(empty)").strip(),
+        )
+    )
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a retail analyst that only replies with valid JSON objects of the form "
+                    "{\"categories\": [\"Category\"]}."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
+    )
+
+    content = response.choices[0].message.content.strip()
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        # Fall back to a simple heuristic extraction when the response is not valid JSON.
+        matches: list[str] = []
+        for category in config.categories:
+            if re.search(rf"\\b{re.escape(category.name)}\\b", content, flags=re.IGNORECASE):
+                matches.append(category.name)
+        return sorted(set(matches))
+
+    categories_value = parsed.get("categories", []) if isinstance(parsed, dict) else []
+    if not isinstance(categories_value, list):
+        return []
+
+    cleaned: set[str] = set()
+    for entry in categories_value:
+        if isinstance(entry, str):
+            cleaned.add(entry.strip())
+
+    valid_names = {category.name for category in config.categories}
+    return sorted(name for name in cleaned if name in valid_names)
+
+
+def classify_summary(
+    summary: str, article_text: str, config: CategoriesConfig, *, model: str = "gpt-4o-mini"
+) -> tuple[list[str], list[str]]:
+    """Return matching categories and topics, preferring OpenAI classification when available."""
+
+    keyword_categories, keyword_topics = _classify_with_keywords(summary, article_text, config)
+
+    if not config.categories:
+        return (keyword_categories, keyword_topics)
+
+    try:
+        openai_categories = _classify_with_openai(summary, article_text, config, model=model)
+    except RuntimeError:
+        return (keyword_categories, keyword_topics)
+    except Exception:
+        # Defensive guard: if the OpenAI client raises, prefer deterministic keyword matching.
+        return (keyword_categories, keyword_topics)
+
+    if not openai_categories:
+        return (keyword_categories, keyword_topics)
+
+    # Filter topics so they align with the selected categories.
+    aligned_topics: list[str] = []
+    keyword_topic_set = set(keyword_topics)
+    for category in config.categories:
+        if category.name not in openai_categories:
+            continue
+        for topic in category.topics:
+            if topic.name in keyword_topic_set:
+                aligned_topics.append(topic.name)
+
+    return (openai_categories, sorted(set(aligned_topics)))
 
 
 _SLUGIFY_RE = re.compile(r"[^a-z0-9]+")
@@ -351,7 +456,7 @@ def map_summarize_articles(
         title = article.get("title", "")
         url = article.get("url", "")
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
-        categories, topics = classify_summary(summary, text or "", categories_config)
+        categories, topics = classify_summary(summary, text or "", categories_config, model=model)
         summaries.append(
             ArticleSummary(
                 title=title or "",
