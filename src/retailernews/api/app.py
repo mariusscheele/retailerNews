@@ -356,8 +356,8 @@ INDEX_HTML = """
 
         const sanitized = trimmed.replace(/^[\t ]*[-•*][\t ]+/gm, "");
         const paragraphs = sanitized
-          .split(/\n{2,}/)
-          .map((block) => block.replace(/\n+/g, " ").trim())
+          .split(/\\n{2,}/)
+          .map((block) => block.replace(/\\n+/g, " ").trim())
           .filter(Boolean);
 
         if (paragraphs.length === 0) {
