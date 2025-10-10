@@ -11,6 +11,8 @@ from retailernews.config import (
     SiteConfig,
     TopicConfig,
 )
+from types import SimpleNamespace
+
 from retailernews.services.summarizer import classify_summary
 
 
@@ -58,3 +60,44 @@ def test_classify_summary_matches_keywords() -> None:
 
     assert categories == ["Digital", "Stores"]
     assert topics == ["E-commerce", "Operations"]
+
+
+def test_classify_summary_prefers_openai(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = CategoriesConfig(
+        categories=[
+            CategoryConfig(
+                name="Economy",
+                topics=[TopicConfig(name="Macroeconomics", keywords=["inflation"]),],
+            ),
+            CategoryConfig(
+                name="E-commerce",
+                topics=[TopicConfig(name="Digital", keywords=["online"]),],
+            ),
+        ]
+    )
+
+    class DummyCompletions:
+        @staticmethod
+        def create(**kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content='{"categories": ["Economy"]}')
+                    )
+                ]
+            )
+
+    class DummyClient:
+        chat = SimpleNamespace(completions=DummyCompletions())
+
+    monkeypatch.setattr(
+        "retailernews.services.summarizer._get_client",
+        lambda: DummyClient(),
+    )
+
+    categories, topics = classify_summary(
+        "Retailers brace for inflation", "Online inflation pressure persists", config, model="test"
+    )
+
+    assert categories == ["Economy"]
+    assert topics == ["Macroeconomics"]

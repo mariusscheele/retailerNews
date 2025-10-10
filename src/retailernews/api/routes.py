@@ -73,7 +73,9 @@ async def trigger_crawler() -> CrawlResponse:
 
 @router.post("/summaries", response_model=SummariesResponse)
 async def trigger_summarizer(
-    blob_root: str = str(DEFAULT_BLOB_ROOT), model: str = "gpt-4o-mini"
+    blob_root: str = str(DEFAULT_BLOB_ROOT),
+    model: str = "gpt-4o-mini",
+    category: str | None = None,
 ) -> SummariesResponse:
     """Execute the map-reduce summariser pipeline."""
 
@@ -83,12 +85,18 @@ async def trigger_summarizer(
         logger.exception("Summarisation failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    selected_categories = result.categories
+    if category:
+        selected_categories = [entry for entry in result.categories if entry.slug == category]
+        if not selected_categories:
+            raise HTTPException(status_code=404, detail=f"Unknown category: {category}")
+
     return SummariesResponse(
         digest=result.digest,
         blob_root=blob_root,
         model=model,
         categories=[
-            CategorySummary(name=category.name, slug=category.slug, summary=category.summary)
-            for category in result.categories
+            CategorySummary(name=entry.name, slug=entry.slug, summary=entry.summary)
+            for entry in selected_categories
         ],
     )
