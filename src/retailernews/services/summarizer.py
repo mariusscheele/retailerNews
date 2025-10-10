@@ -269,7 +269,8 @@ def _summarize_category_articles(
             "content": (
                 "You are an assistant that synthesises retail news into concise digests for executives. "
                 "Write a single cohesive summary that blends the key developments, risks, and opportunities "
-                "across the provided updates. Always reference supporting URLs inline using the format "
+                "across the provided updates using well-structured paragraphs. Avoid bullet points or numbered "
+                "lists so the result reads like an executive briefing. Always reference supporting URLs inline using the format "
                 "(Source: https://example.com)."
             ),
         },
