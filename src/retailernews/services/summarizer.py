@@ -84,6 +84,51 @@ def _get_client() -> "OpenAI":
     return _client
 
 
+def _fallback_sentences(text: str, *, max_sentences: int = 3) -> list[str]:
+    """Return up to ``max_sentences`` sentences extracted from ``text``."""
+
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return []
+
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", cleaned)
+        if sentence.strip()
+    ]
+
+    return sentences[:max_sentences]
+
+
+def _fallback_article_summary(text: str, title: str) -> str:
+    """Produce a deterministic bullet summary when OpenAI is unavailable."""
+
+    bullet_points = _fallback_sentences(text, max_sentences=3)
+    if not bullet_points:
+        subject = title.strip() or "This article"
+        bullet_points = [f"{subject} did not include any readable content."]
+
+    return "\n".join(f"- {point}" for point in bullet_points)
+
+
+def _fallback_digest(summaries: list["ArticleSummary"]) -> str:
+    """Generate a basic digest without relying on the OpenAI API."""
+
+    if not summaries:
+        return "No summaries available."
+
+    lines: list[str] = []
+    for entry in summaries:
+        headline = entry.title or entry.url or "Untitled article"
+        first_sentence = _fallback_sentences(entry.summary, max_sentences=1)
+        summary_text = first_sentence[0] if first_sentence else entry.summary.strip()
+        if not summary_text:
+            summary_text = "No summary details recorded."
+        lines.append(f"{headline}: {summary_text}")
+
+    return "\n".join(lines)
+
+
 def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mini") -> str:
     """Summarize a single article into concise bullet points."""
 
@@ -117,12 +162,16 @@ def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mi
     ]
 
     print(f"Summarizing article: {title or 'Untitled'}")
-    client = _get_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=0.3,
-    )
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.3,
+        )
+    except Exception as exc:  # pragma: no cover - provides offline fallback
+        print(f"Falling back to local summary generation: {exc}")
+        return _fallback_article_summary(truncated_text, title)
 
     return response.choices[0].message.content.strip()
 
@@ -242,7 +291,11 @@ def _classify_with_openai(
     if not config.categories:
         return []
 
-    client = _get_client()
+    try:
+        client = _get_client()
+    except Exception as exc:  # pragma: no cover - provides offline fallback
+        print(f"OpenAI classification unavailable, falling back to keyword rules: {exc}")
+        return []
 
     catalogue: list[str] = []
     for category in config.categories:
@@ -266,20 +319,24 @@ def _classify_with_openai(
         )
     )
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a retail analyst that only replies with valid JSON objects of the form "
-                    "{\"categories\": [\"Category\"]}."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a retail analyst that only replies with valid JSON objects of the form "
+                        "{\"categories\": [\"Category\"]}."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0,
+        )
+    except Exception as exc:  # pragma: no cover - provides offline fallback
+        print(f"OpenAI classification unavailable, falling back to keyword rules: {exc}")
+        return []
 
     content = response.choices[0].message.content.strip()
     try:
@@ -512,12 +569,17 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
         },
     ]
 
-    client = _get_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=0.3,
-    )
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.3,
+        )
+    except Exception as exc:  # pragma: no cover - provides offline fallback
+        print(f"Falling back to local digest generation: {exc}")
+        return _fallback_digest(summaries)
+
     return response.choices[0].message.content.strip()
 
 
