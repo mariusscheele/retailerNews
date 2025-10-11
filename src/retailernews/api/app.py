@@ -162,7 +162,7 @@ INDEX_HTML = """
       const digestPanel = document.getElementById("digest-panel");
       const digestText = document.getElementById("digest-text");
 
-      async function callEndpoint(button, url, pendingMessage) {
+      async function callEndpoint(button, url, pendingMessage, onSuccess) {
         statusEl.textContent = pendingMessage;
         resultsEl.hidden = true;
         digestPanel.hidden = true;
