@@ -163,6 +163,15 @@ INDEX_HTML = """
         color: #1d4ed8;
       }
 
+      .digest-status {
+        padding: 12px 16px;
+        border-radius: 16px;
+        background: rgba(79, 70, 229, 0.08);
+        color: #3730a3;
+        font-weight: 600;
+        text-align: center;
+      }
+
       @media (max-width: 900px) {
         .layout {
           grid-template-columns: 1fr;
@@ -246,10 +255,19 @@ INDEX_HTML = """
         });
       }
 
-      async function callEndpoint(button, url, pendingMessage, onSuccess) {
-        statusEl.textContent = pendingMessage;
-        digestPanel.classList.remove("visible");
+      function showDigestMessage(message) {
+        digestPanel.classList.add("visible");
         digestArticle.innerHTML = "";
+        const statusParagraph = document.createElement("p");
+        statusParagraph.className = "digest-status";
+        statusParagraph.textContent = message;
+        digestArticle.appendChild(statusParagraph);
+      }
+
+      async function callEndpoint(button, url, options) {
+        const { statusMessage, digestMessage, onSuccess } = options;
+        statusEl.textContent = statusMessage;
+        showDigestMessage(digestMessage || statusMessage);
         button.disabled = true;
 
         try {
@@ -260,36 +278,45 @@ INDEX_HTML = """
           }
 
           const payload = await response.json();
-          statusEl.textContent = `Completed at ${new Date().toLocaleTimeString()}`;
+          const completionMessage = `Completed at ${new Date().toLocaleTimeString()}`;
+          statusEl.textContent = completionMessage;
 
           if (onSuccess) {
             onSuccess(payload);
           }
         } catch (error) {
-          statusEl.textContent = `Error: ${error.message}`;
+          const errorMessage = `Error: ${error.message}`;
+          statusEl.textContent = errorMessage;
+          showDigestMessage(errorMessage);
         } finally {
           button.disabled = false;
         }
       }
 
       crawlerButton.addEventListener("click", () =>
-        callEndpoint(crawlerButton, "/api/crawl", "Running crawler...")
+        callEndpoint(crawlerButton, "/api/crawl", {
+          statusMessage: "Running crawler...",
+          digestMessage: "Crawler started. Gathering the latest updates...",
+        })
       );
 
       summarizerButton.addEventListener("click", () =>
         callEndpoint(
           summarizerButton,
           "/api/summaries",
-          "Building digest...",
-          (payload) => {
-            const digest = payload?.digest?.trim();
-            if (digest) {
-              renderDigestArticle(digest);
-              digestPanel.classList.add("visible");
-            } else {
-              renderDigestArticle("");
-              digestPanel.classList.add("visible");
-            }
+          {
+            statusMessage: "Building digest...",
+            digestMessage: "Building your executive digest...",
+            onSuccess: (payload) => {
+              const digest = payload?.digest?.trim();
+              if (digest) {
+                renderDigestArticle(digest);
+                digestPanel.classList.add("visible");
+              } else {
+                renderDigestArticle("");
+                digestPanel.classList.add("visible");
+              }
+            },
           }
         )
       );
