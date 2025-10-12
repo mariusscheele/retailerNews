@@ -199,11 +199,11 @@ INDEX_HTML = """
           </p>
         </div>
         <div class=\"actions\">
-          <button id=\"run-crawler\">
+          <button id=\"run-crawler\" type=\"button\">
             <span aria-hidden=\"true\">🕷️</span>
             Run crawler
           </button>
-          <button id=\"run-summarizer\">
+          <button id=\"run-summarizer\" type=\"button\">
             <span aria-hidden=\"true\">📝</span>
             Build summary
           </button>
@@ -226,100 +226,100 @@ INDEX_HTML = """
       </main>
     </div>
     <script>
-      const crawlerButton = document.getElementById("run-crawler");
-      const summarizerButton = document.getElementById("run-summarizer");
-      const statusEl = document.getElementById("status");
-      const digestPanel = document.getElementById("digest-panel");
-      const digestArticle = document.getElementById("digest-article");
+      window.addEventListener("DOMContentLoaded", () => {
+        const crawlerButton = document.getElementById("run-crawler");
+        const summarizerButton = document.getElementById("run-summarizer");
+        const statusEl = document.getElementById("status");
+        const digestPanel = document.getElementById("digest-panel");
+        const digestArticle = document.getElementById("digest-article");
 
-      function renderDigestArticle(text) {
-        const paragraphs = text
-          .replace(/\r/g, "")
-          .split(/\n{2,}/)
-          .map((paragraph) => paragraph.trim())
-          .filter(Boolean);
-
-        digestArticle.innerHTML = "";
-
-        if (!paragraphs.length) {
-          const fallback = document.createElement("p");
-          fallback.textContent = "No digest content available.";
-          digestArticle.appendChild(fallback);
+        if (!crawlerButton || !summarizerButton || !statusEl || !digestPanel || !digestArticle) {
           return;
         }
 
-        paragraphs.forEach((paragraph) => {
-          const p = document.createElement("p");
-          p.textContent = paragraph;
-          digestArticle.appendChild(p);
+        const renderDigestArticle = (text) => {
+          const paragraphs = text
+            .replace(/\r/g, "")
+            .split(/\n{2,}/)
+            .map((paragraph) => paragraph.trim())
+            .filter(Boolean);
+
+          digestArticle.innerHTML = "";
+
+          if (!paragraphs.length) {
+            const fallback = document.createElement("p");
+            fallback.textContent = "No digest content available.";
+            digestArticle.appendChild(fallback);
+            return;
+          }
+
+          paragraphs.forEach((paragraph) => {
+            const p = document.createElement("p");
+            p.textContent = paragraph;
+            digestArticle.appendChild(p);
+          });
+        };
+
+        const showDigestMessage = (message) => {
+          digestPanel.classList.add("visible");
+          digestArticle.innerHTML = "";
+          const statusParagraph = document.createElement("p");
+          statusParagraph.className = "digest-status";
+          statusParagraph.textContent = message;
+          digestArticle.appendChild(statusParagraph);
+        };
+
+        const callEndpoint = async (button, url, options) => {
+          const statusMessage = options.statusMessage;
+          const digestMessage = options.digestMessage;
+          const onSuccess = options.onSuccess;
+
+          statusEl.textContent = statusMessage;
+          showDigestMessage(digestMessage || statusMessage);
+          button.disabled = true;
+
+          try {
+            const response = await fetch(url, { method: "POST" });
+            if (!response.ok) {
+              const message = await response.text();
+              throw new Error(message || `Request failed with ${response.status}`);
+            }
+
+            const payload = await response.json();
+            const completionMessage = `Completed at ${new Date().toLocaleTimeString()}`;
+            statusEl.textContent = completionMessage;
+
+            if (typeof onSuccess === "function") {
+              onSuccess(payload);
+            }
+          } catch (error) {
+            const errorMessage = `Error: ${error.message}`;
+            statusEl.textContent = errorMessage;
+            showDigestMessage(errorMessage);
+          } finally {
+            button.disabled = false;
+          }
+        };
+
+        crawlerButton.addEventListener("click", () => {
+          callEndpoint(crawlerButton, "/api/crawl", {
+            statusMessage: "Running crawler...",
+            digestMessage: "Crawler started. Gathering the latest updates...",
+          });
         });
-      }
 
-      function showDigestMessage(message) {
-        digestPanel.classList.add("visible");
-        digestArticle.innerHTML = "";
-        const statusParagraph = document.createElement("p");
-        statusParagraph.className = "digest-status";
-        statusParagraph.textContent = message;
-        digestArticle.appendChild(statusParagraph);
-      }
-
-      async function callEndpoint(button, url, options) {
-        const { statusMessage, digestMessage, onSuccess } = options;
-        statusEl.textContent = statusMessage;
-        showDigestMessage(digestMessage || statusMessage);
-        button.disabled = true;
-
-        try {
-          const response = await fetch(url, { method: "POST" });
-          if (!response.ok) {
-            const message = await response.text();
-            throw new Error(message || `Request failed with ${response.status}`);
-          }
-
-          const payload = await response.json();
-          const completionMessage = `Completed at ${new Date().toLocaleTimeString()}`;
-          statusEl.textContent = completionMessage;
-
-          if (onSuccess) {
-            onSuccess(payload);
-          }
-        } catch (error) {
-          const errorMessage = `Error: ${error.message}`;
-          statusEl.textContent = errorMessage;
-          showDigestMessage(errorMessage);
-        } finally {
-          button.disabled = false;
-        }
-      }
-
-      crawlerButton.addEventListener("click", () =>
-        callEndpoint(crawlerButton, "/api/crawl", {
-          statusMessage: "Running crawler...",
-          digestMessage: "Crawler started. Gathering the latest updates...",
-        })
-      );
-
-      summarizerButton.addEventListener("click", () =>
-        callEndpoint(
-          summarizerButton,
-          "/api/summaries",
-          {
+        summarizerButton.addEventListener("click", () => {
+          callEndpoint(summarizerButton, "/api/summaries", {
             statusMessage: "Building digest...",
             digestMessage: "Building your executive digest...",
             onSuccess: (payload) => {
-              const digest = payload?.digest?.trim();
-              if (digest) {
-                renderDigestArticle(digest);
-                digestPanel.classList.add("visible");
-              } else {
-                renderDigestArticle("");
-                digestPanel.classList.add("visible");
-              }
+              const digest = payload && payload.digest ? payload.digest.trim() : "";
+              renderDigestArticle(digest);
+              digestPanel.classList.add("visible");
             },
-          }
-        )
-      );
+          });
+        });
+      });
     </script>
   </body>
 </html>
