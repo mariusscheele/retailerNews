@@ -1,11 +1,18 @@
 {
   "sites": [
     {
-      "name": "Retail gazette",
-      "url": "https://beautymatter.com/reports",
-      "root": "https://beautymatter.com/",
-      "topics": ["beauty", "fashion", "wellness"]
+      "name": "Beauty matter articles",
+      "root": "https://beautymatter.com/articles",
+      "url": "https://beautymatter.com/articles/tag:retail",
+      "topics": ["beauty", "fashion", "wellness", "consumer behaviour", "e-commerce", "store operations", "make-up", "retail"]
+    },
+    {
+      "name": "Cosmetics business articles",
+      "root": "https://cosmeticsbusiness.com/",
+      "url": "https://cosmeticsbusiness.com/tag/retail",
+      "topics": ["beauty", "fashion", "wellness", "consumer behaviour", "e-commerce", "store operations", "make-up", "retail"]
     }
+    
   ]
 }
 

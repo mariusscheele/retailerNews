@@ -249,7 +249,7 @@ def crawl(
     print(f"Discovered {len(links)} links")
 
     storage_root = resolve_blob_root(BLOB_ROOT)
-
+    counter = 0
     for link in links:
         path = article_path(link)
 
@@ -280,7 +280,9 @@ def crawl(
                 payload["published_at"] = published_at
             store_json(path, payload, blob_root=storage_root)
             record_stored_url(link, blob_root=storage_root)
+            
             print(f"Stored {link}")
+
         except Exception as exc:  # noqa: BLE001 - broad catch keeps crawl running
             print(f"Failed {link}: {exc}")
 
@@ -362,7 +364,8 @@ class SiteCrawler:
                 print(f"Failed {url}: {exc}")
                 continue
 
-            if not text or len(text) < 200:
+
+            if not text or len(text) < 2500 :
                 print(f"Too little text, skip: {url}")
                 continue
 
@@ -372,7 +375,11 @@ class SiteCrawler:
                 article_data["summary"] = self._build_summary(title=article_data["title"], url=url)
             article_data["text"] = text
 
-            datestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d")
+            datestamp = self.find_published_date(article_response.text)
+            
+            if datestamp:
+                payload["datestamp"] = datestamp
+
             payload = {
                 "url": url,
                 "title": article_data["title"],
@@ -380,9 +387,7 @@ class SiteCrawler:
                 "datestamp": datestamp,
                 "text": text,
             }
-            published_at = self.find_published_date(article_response.text)
-            if published_at:
-                payload["published_at"] = published_at
+            
 
             path = self.article_path(url)
             self.store_json(path, payload, blob_root=storage_root)
@@ -399,7 +404,7 @@ class SiteCrawler:
 
         parsed_base = urlparse(base_url)
         seen: set[str] = set()
-
+        counter = 0
         for anchor in soup.find_all("a", href=True):
             href = anchor.get("href")
             if not href:
@@ -426,7 +431,9 @@ class SiteCrawler:
 
             summary = self._build_summary(title=title, url=normalized)
             yield Article(url=normalized, title=title, summary=summary, topics=list(topics))
-
+            counter +=1
+            if counter > MAX_INTERNAL_LINKS:
+                break
     def _build_summary(self, *, title: str, url: str) -> str:
         """Return a lightweight summary for an article link."""
 
