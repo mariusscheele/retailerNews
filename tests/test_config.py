@@ -18,12 +18,24 @@ from retailernews.services.summarizer import classify_summary
 
 def test_round_trip(tmp_path: Path) -> None:
     config_path = tmp_path / "sites.json"
-    config = AppConfig(sites=[SiteConfig(name="Test", url="https://example.com", topics=["retail"])])
+    config = AppConfig(
+        sites=[
+            SiteConfig(
+                name="Test",
+                url="https://example.com/base",
+                root="https://example.com",
+                topics=["retail"],
+            )
+        ]
+    )
     config.dump(config_path)
 
     loaded = AppConfig.from_file(config_path)
     assert loaded.sites[0].name == "Test"
     assert loaded.sites[0].topics == ["retail"]
+    assert loaded.sites[0].article_root == "https://example.com/"
+    assert loaded.sites[0].allows_url("https://example.com/news/story")
+    assert not loaded.sites[0].allows_url("https://other.com/story")
 
 
 def test_categories_round_trip(tmp_path: Path) -> None:

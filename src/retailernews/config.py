@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Iterable, List
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, HttpUrl, ValidationError
 
@@ -27,6 +28,13 @@ class SiteConfig(BaseModel):
 
     name: str = Field(..., description="Human friendly site name")
     url: HttpUrl = Field(..., description="Base URL to crawl")
+    root: HttpUrl | None = Field(
+        default=None,
+        description=(
+            "Base URL that discovered article links must match. "
+            "Defaults to the crawl URL when omitted."
+        ),
+    )
     topics: List[str] = Field(default_factory=list, description="Topics associated with the site")
     use_sitemap: bool = Field(
         default=False,
@@ -40,6 +48,28 @@ class SiteConfig(BaseModel):
         default=None,
         description="Optional path fragment used to filter sitemap entries",
     )
+
+    @property
+    def article_root(self) -> str:
+        """Return the canonical root URL expected for discovered articles."""
+
+        root = self.root if self.root is not None else self.url
+        return str(root)
+
+    def allows_url(self, candidate_url: str) -> bool:
+        """Return ``True`` when ``candidate_url`` matches the configured root."""
+
+        expected = urlparse(self.article_root)
+        candidate = urlparse(candidate_url)
+
+        if expected.netloc and candidate.netloc != expected.netloc:
+            return False
+
+        expected_path = expected.path.rstrip("/")
+        if expected_path and not candidate.path.startswith(expected_path):
+            return False
+
+        return True
 
 
 class TopicConfig(BaseModel):
