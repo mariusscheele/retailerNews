@@ -21,7 +21,7 @@ __all__ = ["Article", "SiteCrawler", "SiteCrawlResult", "crawl"]
 BLOB_ROOT = DEFAULT_BLOB_ROOT
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
 STORED_URLS_INDEX = "stored_urls.json"
-
+MAX_INTERNAL_LINKS = 10
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -193,6 +193,7 @@ def discover_links_from_page(root_url: str) -> List[str]:
     root_path = parsed_root.path.rstrip("/") + "/"
 
     found: Set[str] = set()
+    counter = 0
     for anchor in soup.find_all("a", href=True):
         href = anchor["href"].strip()
         absolute_url = urljoin(root_url, href)
@@ -204,6 +205,9 @@ def discover_links_from_page(root_url: str) -> List[str]:
             continue
 
         found.add(absolute_url.split("#")[0])  # drop fragments
+        counter += 1
+        if counter > MAX_INTERNAL_LINKS:
+            break
     return list(found)
 
 
