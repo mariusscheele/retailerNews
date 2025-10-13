@@ -240,7 +240,7 @@ INDEX_HTML = """
 
         const renderDigestArticle = (text) => {
           const paragraphs = text
-            .replace(/r/g, "")
+            .replace(/\\r/g, "")
             .split(/\\n{2,}/)
             .map((paragraph) => paragraph.trim())
             .filter(Boolean);
@@ -315,6 +315,7 @@ INDEX_HTML = """
             digestMessage: "Building your executive digest...",
             onSuccess: (payload) => {
               const digest = payload && payload.digest ? payload.digest.trim() : "";
+              console.log(payload.categories);
               renderDigestArticle(digest);
               digestPanel.classList.add("visible");
             },
