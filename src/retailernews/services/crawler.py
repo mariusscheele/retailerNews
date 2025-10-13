@@ -377,8 +377,7 @@ class SiteCrawler:
 
             datestamp = self.find_published_date(article_response.text)
             
-            if datestamp:
-                payload["datestamp"] = datestamp
+            
 
             payload = {
                 "url": url,
@@ -387,7 +386,6 @@ class SiteCrawler:
                 "datestamp": datestamp,
                 "text": text,
             }
-            
 
             path = self.article_path(url)
             self.store_json(path, payload, blob_root=storage_root)
