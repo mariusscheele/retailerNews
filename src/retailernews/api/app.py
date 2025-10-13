@@ -369,6 +369,28 @@ INDEX_HTML = """
           }
         };
 
+        const loadStoredDigest = async () => {
+          try {
+            const response = await fetch("/api/summaries/latest");
+            if (!response.ok) {
+              throw new Error(`Failed to load stored digest (${response.status})`);
+            }
+
+            const payload = await response.json();
+            const digest =
+              payload && typeof payload.digest === "string"
+                ? payload.digest.trim()
+                : "";
+
+            if (digest) {
+              renderDigestArticle(digest);
+              digestPanel.classList.add("visible");
+            }
+          } catch (error) {
+            console.error(error);
+          }
+        };
+
         const loadStoredUrls = async () => {
           try {
             const response = await fetch("/api/crawl/urls");
@@ -447,6 +469,7 @@ INDEX_HTML = """
           });
         });
 
+        loadStoredDigest();
         loadStoredUrls();
       });
     </script>

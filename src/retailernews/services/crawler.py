@@ -294,7 +294,7 @@ def crawl(
                 print(f"Too little text, skip: {link}")
                 continue
 
-            datestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d")
+            datestamp = find_published_date(response.text)
             payload = {
                 "url": link,
                 "title": title,
@@ -304,9 +304,6 @@ def crawl(
                 "datestamp": datestamp,
                 "text": text,
             }
-            published_at = find_published_date(response.text)
-            if published_at:
-                payload["published_at"] = published_at
             store_json(path, payload, blob_root=storage_root)
             record_stored_url(link, blob_root=storage_root)
             
@@ -404,12 +401,11 @@ class SiteCrawler:
             if not article_data.get("summary"):
                 article_data["summary"] = self._build_summary(title=article_data["title"], url=url)
             article_data["text"] = text
-            datestamp = self.find_published_date(article_response.text)
             payload = {
                 "url": url,
                 "title": article_data["title"],
                 "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "datestamp": datestamp,
+                "datestamp": self.find_published_date(article_response.text),
                 "text": text,
             }
 

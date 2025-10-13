@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import List
 
 import requests
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
-from retailernews.blobstore import DEFAULT_BLOB_ROOT
+from retailernews.blobstore import DEFAULT_BLOB_ROOT, ensure_blob_root
 from retailernews.config import AppConfig
 from retailernews.services.crawler import SiteCrawlResult, SiteCrawler
 from retailernews.services.summarizer import map_reduce_summarize
@@ -18,6 +21,8 @@ from retailernews.services.summarizer import map_reduce_summarize
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+LATEST_DIGEST_FILENAME = "latest_digest.json"
 
 
 class CrawlError(BaseModel):
@@ -47,6 +52,48 @@ class SummariesResponse(BaseModel):
 
 class StoredUrlsResponse(BaseModel):
     urls: List[str] = Field(default_factory=list)
+
+
+def _latest_digest_path(blob_root: str | Path | None = None) -> Path:
+    """Return the path to the file containing the most recent digest."""
+
+    root = ensure_blob_root(blob_root)
+    return root / LATEST_DIGEST_FILENAME
+
+
+def store_latest_digest(response: "SummariesResponse", *, blob_root: str | Path | None = None) -> None:
+    """Persist the latest digest response to disk."""
+
+    payload = response.model_dump()
+    payload["stored_at"] = datetime.now(UTC).isoformat()
+
+    output_path = _latest_digest_path(blob_root)
+    try:
+        output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:  # pragma: no cover - filesystem failures are environmental
+        logger.warning("Failed to store latest digest at %s: %s", output_path, exc)
+
+
+def load_latest_digest(blob_root: str | Path | None = None) -> "SummariesResponse" | None:
+    """Load the most recently stored digest if it exists."""
+
+    path = _latest_digest_path(blob_root)
+    if not path.exists():
+        return None
+
+    try:
+        raw_data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to load latest digest from %s: %s", path, exc)
+        return None
+
+    raw_data.pop("stored_at", None)
+
+    try:
+        return SummariesResponse(**raw_data)
+    except ValidationError as exc:
+        logger.warning("Stored latest digest is invalid: %s", exc)
+        return None
 
 
 @router.post("/crawl", response_model=CrawlResponse)
@@ -106,7 +153,7 @@ async def trigger_summarizer(
         if not selected_categories:
             raise HTTPException(status_code=404, detail=f"Unknown category: {category}")
 
-    return SummariesResponse(
+    response = SummariesResponse(
         digest=result.digest,
         blob_root=blob_root,
         model=model,
@@ -115,3 +162,18 @@ async def trigger_summarizer(
             for entry in selected_categories
         ],
     )
+
+    store_latest_digest(response)
+
+    return response
+
+
+@router.get("/summaries/latest", response_model=SummariesResponse)
+async def retrieve_latest_summary() -> SummariesResponse:
+    """Return the most recently generated digest if one exists."""
+
+    stored = load_latest_digest()
+    if stored is not None:
+        return stored
+
+    return SummariesResponse(digest="", blob_root=str(DEFAULT_BLOB_ROOT), model="", categories=[])
