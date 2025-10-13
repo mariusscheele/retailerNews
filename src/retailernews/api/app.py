@@ -163,6 +163,49 @@ INDEX_HTML = """
         color: #1d4ed8;
       }
 
+      .extracted-urls {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid rgba(148, 163, 184, 0.3);
+        display: grid;
+        gap: 12px;
+      }
+
+      .extracted-urls h4 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #0f172a;
+      }
+
+      .extracted-urls ul {
+        margin: 0;
+        padding-left: 20px;
+        display: grid;
+        gap: 8px;
+        color: #1f2937;
+      }
+
+      .extracted-urls li {
+        word-break: break-word;
+      }
+
+      .extracted-urls a {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px dashed rgba(148, 163, 184, 0.6);
+      }
+
+      .extracted-urls a:hover,
+      .extracted-urls a:focus {
+        color: #1d4ed8;
+        border-bottom-color: #1d4ed8;
+      }
+
+      .extracted-urls-empty {
+        margin: 0;
+        color: #64748b;
+      }
+
       .digest-status {
         padding: 12px 16px;
         border-radius: 16px;
@@ -222,19 +265,38 @@ INDEX_HTML = """
         <section class="digest-panel" id="digest-panel">
           <h3>Executive Digest</h3>
           <article class="digest-article" id="digest-article"></article>
+          <div class="extracted-urls" id="extracted-urls">
+            <h4>Extracted URLs</h4>
+            <p class="extracted-urls-empty" id="extracted-urls-empty">
+              No URLs have been stored yet. Run the crawler to populate this list.
+            </p>
+            <ul id="extracted-urls-list"></ul>
+          </div>
         </section>
       </main>
     </div>
     <script>
       window.addEventListener("DOMContentLoaded", () => {
-        
+
         const crawlerButton = document.getElementById("run-crawler");
         const summarizerButton = document.getElementById("run-summarizer");
         const statusEl = document.getElementById("status");
         const digestPanel = document.getElementById("digest-panel");
         const digestArticle = document.getElementById("digest-article");
+        const extractedUrlsSection = document.getElementById("extracted-urls");
+        const extractedUrlsList = document.getElementById("extracted-urls-list");
+        const extractedUrlsEmpty = document.getElementById("extracted-urls-empty");
 
-        if (!crawlerButton || !summarizerButton || !statusEl || !digestPanel || !digestArticle) {
+        if (
+          !crawlerButton ||
+          !summarizerButton ||
+          !statusEl ||
+          !digestPanel ||
+          !digestArticle ||
+          !extractedUrlsSection ||
+          !extractedUrlsList ||
+          !extractedUrlsEmpty
+        ) {
           return;
         }
 
@@ -268,6 +330,57 @@ INDEX_HTML = """
           statusParagraph.className = "digest-status";
           statusParagraph.textContent = message;
           digestArticle.appendChild(statusParagraph);
+        };
+
+        const renderExtractedUrls = (urls) => {
+          extractedUrlsList.innerHTML = "";
+
+          const urlEntries = Array.isArray(urls) ? urls : [];
+          const uniqueUrls = Array.from(
+            new Set(
+              urlEntries
+                .map((url) => (typeof url === "string" ? url.trim() : ""))
+                .filter(Boolean),
+            ),
+          );
+
+          if (!uniqueUrls.length) {
+            extractedUrlsEmpty.hidden = false;
+            return;
+          }
+
+          extractedUrlsEmpty.hidden = true;
+
+          uniqueUrls.forEach((trimmedUrl) => {
+            const listItem = document.createElement("li");
+            const link = document.createElement("a");
+            link.href = trimmedUrl;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = trimmedUrl;
+            listItem.appendChild(link);
+            extractedUrlsList.appendChild(listItem);
+          });
+
+          if (extractedUrlsList.children.length) {
+            digestPanel.classList.add("visible");
+          } else {
+            extractedUrlsEmpty.hidden = false;
+          }
+        };
+
+        const loadStoredUrls = async () => {
+          try {
+            const response = await fetch("/api/crawl/urls");
+            if (!response.ok) {
+              throw new Error(`Failed to load stored URLs (${response.status})`);
+            }
+
+            const payload = await response.json();
+            renderExtractedUrls(payload && Array.isArray(payload.urls) ? payload.urls : []);
+          } catch (error) {
+            console.error(error);
+          }
         };
 
         const callEndpoint = async (button, url, options) => {
@@ -306,6 +419,12 @@ INDEX_HTML = """
           callEndpoint(crawlerButton, "/api/crawl", {
             statusMessage: "Running crawler...",
             digestMessage: "Crawler started. Gathering the latest updates...",
+            onSuccess: (payload) => {
+              const urls = payload && Array.isArray(payload.stored_urls)
+                ? payload.stored_urls
+                : [];
+              renderExtractedUrls(urls);
+            },
           });
         });
 
@@ -321,6 +440,8 @@ INDEX_HTML = """
             },
           });
         });
+
+        loadStoredUrls();
       });
     </script>
   </body>

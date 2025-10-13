@@ -29,6 +29,7 @@ class CrawlError(BaseModel):
 class CrawlResponse(BaseModel):
     sites: List[SiteCrawlResult] = Field(default_factory=list)
     errors: List[CrawlError] = Field(default_factory=list)
+    stored_urls: List[str] = Field(default_factory=list)
 
 
 class CategorySummary(BaseModel):
@@ -42,6 +43,10 @@ class SummariesResponse(BaseModel):
     blob_root: str
     model: str
     categories: List[CategorySummary] = Field(default_factory=list)
+
+
+class StoredUrlsResponse(BaseModel):
+    urls: List[str] = Field(default_factory=list)
 
 
 @router.post("/crawl", response_model=CrawlResponse)
@@ -68,7 +73,17 @@ async def trigger_crawler() -> CrawlResponse:
             continue
         successes.append(result)
 
-    return CrawlResponse(sites=successes, errors=errors)
+    stored_urls = SiteCrawler.load_recorded_urls(blob_root=DEFAULT_BLOB_ROOT)
+
+    return CrawlResponse(sites=successes, errors=errors, stored_urls=stored_urls)
+
+
+@router.get("/crawl/urls", response_model=StoredUrlsResponse)
+async def list_crawled_urls() -> StoredUrlsResponse:
+    """Return a list of URLs that have previously been stored by the crawler."""
+
+    urls = SiteCrawler.load_recorded_urls(blob_root=DEFAULT_BLOB_ROOT)
+    return StoredUrlsResponse(urls=urls)
 
 
 @router.post("/summaries", response_model=SummariesResponse)
