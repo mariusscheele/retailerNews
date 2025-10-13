@@ -498,7 +498,8 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
                 "You craft executive-ready digests highlighting major retail trends. "
                 "Always cite supporting source URLs inline immediately after the relevant sentence "
                 "using the format (Source: https://example.com). Do not place sources in a "
-                "standalone list."
+                "standalone list. Structure the digest as HTML where each major section begins with "
+                "a semantic heading tag such as <h2> or <h3>, followed by paragraph content."
             ),
         },
         {
@@ -507,7 +508,8 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
                 "Using the following bullet-point summaries from recent retail news, produce a cohesive digest "
                 "that highlights key themes, risks, and opportunities for retail executives. Keep it concise and "
                 "action-oriented. Cite the exact source URL inline immediately after the supporting statement and "
-                "avoid grouping sources at the end.\n\nSummaries:\n{summaries}".format(summaries=combined)
+                "avoid grouping sources at the end. Use HTML heading elements (e.g., <h2>) for section titles and wrap "
+                "supporting text in <p> tags so the output renders as structured HTML.\n\nSummaries:\n{summaries}".format(summaries=combined)
             ),
         },
     ]
