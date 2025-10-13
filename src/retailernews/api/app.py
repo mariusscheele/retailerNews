@@ -9,15 +9,15 @@ from retailernews.api.routes import router
 
 INDEX_HTML = """
 <!DOCTYPE html>
-<html lang=\"en\">
+<html lang="en">
   <head>
-    <meta charset=\"utf-8\" />
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Retailer News Crawler</title>
     <style>
       :root {
         color-scheme: light dark;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: #f4f4f5;
         color: #0f172a;
       }
@@ -133,7 +133,7 @@ INDEX_HTML = """
         border-radius: 28px;
         padding: 36px;
         box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
-        display: none;
+        
       }
 
       .digest-panel.visible {
@@ -189,8 +189,8 @@ INDEX_HTML = """
     </style>
   </head>
   <body>
-    <div class=\"layout\">
-      <aside class=\"sidebar\">
+    <div class="layout">
+      <aside class="sidebar">
         <div>
           <h1>Retailer News Toolkit</h1>
           <p>
@@ -198,20 +198,20 @@ INDEX_HTML = """
             when you're ready to review the highlights.
           </p>
         </div>
-        <div class=\"actions\">
-          <button id=\"run-crawler\" type=\"button\">
-            <span aria-hidden=\"true\">🕷️</span>
+        <div class="actions">
+          <button id="run-crawler" type="button">
+            <span aria-hidden="true">🕷️</span>
             Run crawler
           </button>
-          <button id=\"run-summarizer\" type=\"button\">
-            <span aria-hidden=\"true\">📝</span>
+          <button id="run-summarizer" type="button">
+            <span aria-hidden="true">📝</span>
             Build summary
           </button>
         </div>
-        <div class=\"status\" id=\"status\"></div>
+        <div class="status" id="status"></div>
       </aside>
-      <main class=\"content\">
-        <section class=\"welcome\">
+      <main class="content">
+        <section class="welcome">
           <h2>Welcome to our page for latest news within beauty industry</h2>
           <p>
             Explore curated updates and insights from across the beauty retail
@@ -219,14 +219,15 @@ INDEX_HTML = """
             overview of what matters most.
           </p>
         </section>
-        <section class=\"digest-panel\" id=\"digest-panel\">
+        <section class="digest-panel" id="digest-panel">
           <h3>Executive Digest</h3>
-          <article class=\"digest-article\" id=\"digest-article\"></article>
+          <article class="digest-article" id="digest-article"></article>
         </section>
       </main>
     </div>
     <script>
       window.addEventListener("DOMContentLoaded", () => {
+        
         const crawlerButton = document.getElementById("run-crawler");
         const summarizerButton = document.getElementById("run-summarizer");
         const statusEl = document.getElementById("status");
@@ -239,8 +240,8 @@ INDEX_HTML = """
 
         const renderDigestArticle = (text) => {
           const paragraphs = text
-            .replace(/\r/g, "")
-            .split(/\n{2,}/)
+            .replace(/r/g, "")
+            .split(/\\n{2,}/)
             .map((paragraph) => paragraph.trim())
             .filter(Boolean);
 

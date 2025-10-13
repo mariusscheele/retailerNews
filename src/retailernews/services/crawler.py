@@ -175,7 +175,7 @@ def discover_links_from_sitemap(
     """Parse sitemap.xml and return links (optionally filtered by path)."""
 
     response = requests.get(sitemap_url, headers=HEADERS, timeout=(10, 120))
-    print(response)
+    
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "xml")
     urls = [loc.text for loc in soup.find_all("loc")]
