@@ -386,6 +386,7 @@ INDEX_HTML = """
         const callEndpoint = async (button, url, options) => {
           const statusMessage = options.statusMessage;
           const digestMessage = options.digestMessage;
+          const completionDigestMessage = options.completionDigestMessage;
           const onSuccess = options.onSuccess;
 
           statusEl.textContent = statusMessage;
@@ -403,6 +404,10 @@ INDEX_HTML = """
             const completionMessage = `Completed at ${new Date().toLocaleTimeString()}`;
             statusEl.textContent = completionMessage;
 
+            if (completionDigestMessage) {
+              showDigestMessage(completionDigestMessage);
+            }
+
             if (typeof onSuccess === "function") {
               onSuccess(payload);
             }
@@ -419,6 +424,7 @@ INDEX_HTML = """
           callEndpoint(crawlerButton, "/api/crawl", {
             statusMessage: "Running crawler...",
             digestMessage: "Crawler started. Gathering the latest updates...",
+            completionDigestMessage: "Crawler completed.",
             onSuccess: (payload) => {
               const urls = payload && Array.isArray(payload.stored_urls)
                 ? payload.stored_urls
