@@ -39,6 +39,24 @@ class DummyResponse:
             raise Exception("error")
 
 
+def test_find_published_date_prefers_meta_tag() -> None:
+    html = """
+    <html>
+        <head>
+            <meta property="article:published_time" content="2024-10-05T09:30:00Z" />
+        </head>
+        <body>
+            <time datetime="2024-09-01">September 1</time>
+        </body>
+    </html>
+    """
+
+    assert (
+        SiteCrawler.find_published_date(html)
+        == "2024-10-05T09:30:00Z"
+    )
+
+
 def test_fetch_extracts_new_articles(monkeypatch) -> None:
     site = SiteConfig(name="Example", url="https://example.com", topics=[])
     crawler = SiteCrawler()
@@ -57,6 +75,7 @@ def test_fetch_extracts_new_articles(monkeypatch) -> None:
 
     crawler._session = SimpleNamespace(get=fake_get)
     monkeypatch.setattr(crawler, "extract_text", lambda html: ("Story", article_text))
+    monkeypatch.setattr(crawler, "find_published_date", lambda html: "2024-10-05")
     monkeypatch.setattr(crawler, "article_path", lambda url: "path/to/article.json")
 
     stored_payloads = []
@@ -78,6 +97,9 @@ def test_fetch_extracts_new_articles(monkeypatch) -> None:
     assert len(result.articles) == 1
     assert result.articles[0].text == article_text
     assert stored_payloads
+    payload = stored_payloads[0][1]
+    assert payload["published_at"] == "2024-10-05"
+    assert "datestamp" in payload and len(payload["datestamp"]) == 8
     assert recorded_urls == ["https://example.com/story"]
 
 
