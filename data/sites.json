@@ -7,12 +7,17 @@
       "topics": ["beauty", "fashion", "wellness", "consumer behaviour", "e-commerce", "store operations", "make-up", "retail"]
     },
     {
-      "name": "Cosmetics business articles",
+      "name": "Cosmetics business Retail articles",
       "root": "https://cosmeticsbusiness.com/",
       "url": "https://cosmeticsbusiness.com/tag/retail",
       "topics": ["beauty", "fashion", "wellness", "consumer behaviour", "e-commerce", "store operations", "make-up", "retail"]
-    }
-    
+    },
+    {
+      "name": "Cosmetics business Marketing articles",
+      "root": "https://cosmeticsbusiness.com/",
+      "url": "https://cosmeticsbusiness.com/tag/marketing",
+      "topics": ["beauty", "fashion", "wellness", "make-up", "marketing"]
+    }    
   ]
 }
 

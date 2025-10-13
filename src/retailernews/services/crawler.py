@@ -404,18 +404,15 @@ class SiteCrawler:
             if not article_data.get("summary"):
                 article_data["summary"] = self._build_summary(title=article_data["title"], url=url)
             article_data["text"] = text
-
+            datestamp = self.find_published_date(article_response.text)
             payload = {
                 "url": url,
                 "title": article_data["title"],
                 "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "datestamp": datetime.datetime.now(datetime.UTC).strftime("%Y%m%d"),
+                "datestamp": datestamp,
                 "text": text,
             }
 
-            published_at = self.find_published_date(article_response.text)
-            if published_at:
-                payload["published_at"] = published_at
 
             path = self.article_path(url)
             self.store_json(path, payload, blob_root=storage_root)
