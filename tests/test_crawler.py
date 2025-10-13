@@ -94,8 +94,7 @@ def test_fetch_extracts_new_articles(monkeypatch) -> None:
     assert result.articles[0].text == article_text
     assert stored_payloads
     payload = stored_payloads[0][1]
-    assert payload["published_at"] == "2024-10-05"
-    assert "datestamp" in payload and len(payload["datestamp"]) == 8
+    assert payload["datestamp"] == "2024-10-05"
     assert recorded_urls == ["https://example.com/story"]
 
 
