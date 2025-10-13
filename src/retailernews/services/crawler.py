@@ -127,9 +127,47 @@ def article_path(url: str) -> str:
     """Generate blob-style path based on URL and current date."""
 
     host = urlparse(url).netloc
-    datestamp = datetime.datetime.utcnow().strftime("%Y%m%d")
+    datestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d")
     url_hash = hashlib.sha1(url.encode("utf-8")).hexdigest()
     return f"site={host}/{datestamp}/{url_hash}.json"
+
+
+def find_published_date(html: str) -> str | None:
+    """Attempt to extract a published date string from article HTML."""
+
+    soup = BeautifulSoup(html, "lxml")
+
+    meta_selectors = [
+        {"property": "article:published_time"},
+        {"name": "pubdate"},
+        {"name": "publish-date"},
+        {"name": "publication_date"},
+        {"name": "date"},
+        {"itemprop": "datePublished"},
+    ]
+
+    for attrs in meta_selectors:
+        tag = soup.find("meta", attrs=attrs)
+        if not tag:
+            continue
+        for attribute in ("content", "datetime", "value"):
+            value = tag.get(attribute)
+            if value:
+                return value.strip()
+        text = tag.get_text(strip=True)
+        if text:
+            return text
+
+    for time_tag in soup.find_all("time"):
+        for attribute in ("datetime", "content", "title"):
+            value = time_tag.get(attribute)
+            if value:
+                return value.strip()
+        text = time_tag.get_text(strip=True)
+        if text:
+            return text
+
+    return None
 
 
 def extract_text(html: str) -> tuple[str, str]:
@@ -223,14 +261,19 @@ def crawl(
                 print(f"Too little text, skip: {link}")
                 continue
 
+            datestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d")
             payload = {
                 "url": link,
                 "title": title,
                 "fetched_at": datetime.datetime.now().strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
+                "datestamp": datestamp,
                 "text": text,
             }
+            published_at = find_published_date(response.text)
+            if published_at:
+                payload["published_at"] = published_at
             store_json(path, payload, blob_root=storage_root)
             record_stored_url(link, blob_root=storage_root)
             print(f"Stored {link}")
@@ -268,6 +311,7 @@ class SiteCrawler:
     has_been_extracted = staticmethod(has_been_extracted)
     article_path = staticmethod(article_path)
     extract_text = staticmethod(extract_text)
+    find_published_date = staticmethod(find_published_date)
     discover_links_from_page = staticmethod(discover_links_from_page)
     discover_links_from_sitemap = staticmethod(discover_links_from_sitemap)
     crawl = staticmethod(crawl)
@@ -319,12 +363,17 @@ class SiteCrawler:
                 article_data["summary"] = self._build_summary(title=article_data["title"], url=url)
             article_data["text"] = text
 
+            datestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d")
             payload = {
                 "url": url,
                 "title": article_data["title"],
                 "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "datestamp": datestamp,
                 "text": text,
             }
+            published_at = self.find_published_date(article_response.text)
+            if published_at:
+                payload["published_at"] = published_at
 
             path = self.article_path(url)
             self.store_json(path, payload, blob_root=storage_root)
