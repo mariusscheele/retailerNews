@@ -79,6 +79,35 @@ def record_stored_url(
         json.dump({"urls": urls}, file, ensure_ascii=False, indent=2)
 
 
+def load_recorded_urls(
+    index_filename: str = STORED_URLS_INDEX, *, blob_root: Path | str | None = None
+) -> List[str]:
+    """Return a list of URLs that have been recorded in the blob root index."""
+
+    root = resolve_blob_root(blob_root if blob_root is not None else BLOB_ROOT)
+    index_path = root / index_filename
+
+    if not index_path.exists():
+        return []
+
+    try:
+        with index_path.open("r", encoding="utf-8") as file:
+            data = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    if isinstance(data, dict):
+        maybe_urls = data.get("urls")
+        if isinstance(maybe_urls, list):
+            return [str(url) for url in maybe_urls]
+        return []
+
+    if isinstance(data, list):
+        return [str(url) for url in data]
+
+    return []
+
+
 def has_been_extracted(
     url: str, index_filename: str = EXTRACTED_URLS_INDEX, *, blob_root: Path | str | None = None
 ) -> bool:
@@ -314,6 +343,7 @@ class SiteCrawler:
     # Maintain parity with helper functions from ``src/services/crawler.py``.
     store_json = staticmethod(store_json)
     record_stored_url = staticmethod(record_stored_url)
+    load_recorded_urls = staticmethod(load_recorded_urls)
     has_been_extracted = staticmethod(has_been_extracted)
     article_path = staticmethod(article_path)
     extract_text = staticmethod(extract_text)
@@ -365,7 +395,7 @@ class SiteCrawler:
                 continue
 
 
-            if not text or len(text) < 2500 :
+            if not text or len(text) < 200:
                 print(f"Too little text, skip: {url}")
                 continue
 
@@ -375,17 +405,17 @@ class SiteCrawler:
                 article_data["summary"] = self._build_summary(title=article_data["title"], url=url)
             article_data["text"] = text
 
-            datestamp = self.find_published_date(article_response.text)
-            
-            
-
             payload = {
                 "url": url,
                 "title": article_data["title"],
                 "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "datestamp": datestamp,
+                "datestamp": datetime.datetime.now(datetime.UTC).strftime("%Y%m%d"),
                 "text": text,
             }
+
+            published_at = self.find_published_date(article_response.text)
+            if published_at:
+                payload["published_at"] = published_at
 
             path = self.article_path(url)
             self.store_json(path, payload, blob_root=storage_root)
