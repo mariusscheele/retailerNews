@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Iterator, List, Sequence, Set
 from urllib.parse import urljoin, urlparse
@@ -135,37 +136,36 @@ def article_path(url: str) -> str:
 def find_published_date(html: str) -> str | None:
     """Attempt to extract a published date string from article HTML."""
 
+    month_pattern = (
+        r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+        r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|"
+        r"dec(?:ember)?)"
+    )
+
+    date_pattern = re.compile(
+        rf"""(?ix)
+        published
+        (?:\s+(?:at|on))?
+        [\s,:\-–—]*?
+        (?P<date>
+            \d{{4}}[\/-]\d{{1,2}}[\/-]\d{{1,2}}
+            |
+            \d{{1,2}}[\/-]\d{{1,2}}[\/-]\d{{2,4}}
+            |
+            {month_pattern}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,\s*)?\d{{4}}
+            |
+            \d{{1,2}}(?:st|nd|rd|th)?\s+{month_pattern}\s+\d{{4}}
+        )
+        """,
+        re.IGNORECASE,
+    )
+
     soup = BeautifulSoup(html, "lxml")
+    text = soup.get_text(" ", strip=True)
 
-    meta_selectors = [
-        {"property": "article:published_time"},
-        {"name": "pubdate"},
-        {"name": "publish-date"},
-        {"name": "publication_date"},
-        {"name": "date"},
-        {"itemprop": "datePublished"},
-    ]
-
-    for attrs in meta_selectors:
-        tag = soup.find("meta", attrs=attrs)
-        if not tag:
-            continue
-        for attribute in ("content", "datetime", "value"):
-            value = tag.get(attribute)
-            if value:
-                return value.strip()
-        text = tag.get_text(strip=True)
-        if text:
-            return text
-
-    for time_tag in soup.find_all("time"):
-        for attribute in ("datetime", "content", "title"):
-            value = time_tag.get(attribute)
-            if value:
-                return value.strip()
-        text = time_tag.get_text(strip=True)
-        if text:
-            return text
+    match = date_pattern.search(text)
+    if match:
+        return match.group("date").strip().rstrip(".,;!?")
 
     return None
 

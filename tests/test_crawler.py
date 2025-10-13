@@ -39,22 +39,18 @@ class DummyResponse:
             raise Exception("error")
 
 
-def test_find_published_date_prefers_meta_tag() -> None:
+def test_find_published_date_uses_text_regex() -> None:
     html = """
     <html>
-        <head>
-            <meta property="article:published_time" content="2024-10-05T09:30:00Z" />
-        </head>
         <body>
-            <time datetime="2024-09-01">September 1</time>
+            <p>Updated 2023</p>
+            <div>Published at October 5, 2024.</div>
+            <footer>PUBLISHED ON 2024-09-30 should not match first.</footer>
         </body>
     </html>
     """
 
-    assert (
-        SiteCrawler.find_published_date(html)
-        == "2024-10-05T09:30:00Z"
-    )
+    assert SiteCrawler.find_published_date(html) == "October 5, 2024"
 
 
 def test_fetch_extracts_new_articles(monkeypatch) -> None:
