@@ -332,6 +332,7 @@ class SiteCrawler:
             discovered_articles = [
                 Article(url=link, topics=list(site.topics), summary=self._build_summary(title="", url=link))
                 for link in links
+                if site.allows_url(link)
             ]
         else:
             response = self._session.get(base_url, timeout=(10, 60))
@@ -341,6 +342,10 @@ class SiteCrawler:
 
         storage_root = resolve_blob_root(BLOB_ROOT)
         enriched_articles: List[Article] = []
+
+        discovered_articles = [
+            article for article in discovered_articles if site.allows_url(str(article.url))
+        ]
 
         for article in discovered_articles:
             url = str(article.url)

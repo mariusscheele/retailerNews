@@ -3,6 +3,7 @@
     {
       "name": "Retail gazette",
       "url": "https://beautymatter.com/reports",
+      "root": "https://beautymatter.com/",
       "topics": ["beauty", "fashion", "wellness"]
     }
   ]

@@ -139,3 +139,57 @@ def test_fetch_skips_existing_articles(monkeypatch) -> None:
     assert len(result.articles) == 1
     assert result.articles[0].text is None
     assert fetch_called is False
+
+
+def test_fetch_filters_articles_by_root(monkeypatch) -> None:
+    site = SiteConfig(
+        name="Example",
+        url="https://aggregator.example.com",
+        root="https://example.com",
+        topics=[],
+        use_sitemap=True,
+        sitemap_url="https://aggregator.example.com/sitemap.xml",
+    )
+    crawler = SiteCrawler()
+
+    monkeypatch.setattr(
+        crawler,
+        "discover_links_from_sitemap",
+        lambda sitemap_url, filter_path=None: [
+            "https://example.com/story",
+            "https://other.com/story",
+        ],
+    )
+
+    article_text = "ipsum lorem " * 20
+
+    def fake_get(url, timeout):
+        if url == "https://example.com/story":
+            return DummyResponse("<html>content</html>")
+        raise AssertionError(f"Unexpected request for {url}")
+
+    crawler._session = SimpleNamespace(get=fake_get)
+    monkeypatch.setattr(crawler, "extract_text", lambda html: ("Story", article_text))
+    monkeypatch.setattr(crawler, "find_published_date", lambda html: None)
+    monkeypatch.setattr(crawler, "article_path", lambda url: "path/to/article.json")
+    monkeypatch.setattr(crawler, "has_been_extracted", lambda url, blob_root=None: False)
+
+    recorded_urls: list[str] = []
+    stored_payloads: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(
+        crawler,
+        "store_json",
+        lambda path, payload, blob_root=None: stored_payloads.append((path, payload)),
+    )
+    monkeypatch.setattr(
+        crawler,
+        "record_stored_url",
+        lambda url, blob_root=None: recorded_urls.append(url),
+    )
+
+    result = crawler.fetch(site)
+
+    assert recorded_urls == ["https://example.com/story"]
+    assert [str(article.url) for article in result.articles] == ["https://example.com/story"]
+    assert stored_payloads
