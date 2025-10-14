@@ -15,6 +15,15 @@ from urllib.parse import urlparse
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
 from retailernews.config import CategoriesConfig
 
+_ADVICE_SYSTEM_PROMPT = (
+    "You are a strategy advisor for Norwegian beauty and wellness retailers. "
+    "Translate retail trend summaries into clear, locally-relevant actions, "
+    "highlighting quick wins, longer-term moves, operational considerations, "
+    "and any Nordic market nuances such as consumer expectations, sustainability "
+    "requirements, or regulatory factors. Always organise your response using "
+    "succinct bullet points grouped under helpful sub-headings."
+)
+
 try:  # pragma: no cover - optional dependency during tests
     from openai import OpenAI
 except ModuleNotFoundError:  # pragma: no cover - optional dependency during tests
@@ -82,6 +91,51 @@ def _get_client() -> "OpenAI":
             ) from exc
 
     return _client
+
+
+def generate_category_advice(
+    category_summary: str,
+    prompt: str,
+    *,
+    model: str = "gpt-4o-mini",
+) -> str:
+    """Ask OpenAI for strategic guidance using a shared system prompt."""
+
+    client = _get_client()
+    messages = [
+        {"role": "system", "content": _ADVICE_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"{prompt.strip()}\n\nCategory summary:\n{(category_summary or '').strip() or '(no summary provided)'}"
+            ),
+        },
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.3,
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+def advise_norwegian_beauty_wellness_retailer(
+    category_summary: str,
+    *,
+    model: str = "gpt-4o-mini",
+) -> str:
+    """Return actions a Norwegian beauty and wellness retailer could take."""
+
+    default_prompt = (
+        "We operate a Norwegian beauty and wellness retail chain. Based on the category "
+        "summary, recommend how we should respond to the highlighted trends. Provide "
+        "immediate actions, medium-term initiatives, and potential collaboration or "
+        "capability gaps to address."
+    )
+
+    return generate_category_advice(category_summary, default_prompt, model=model)
 
 
 def summarize_single_article(text: str, title: str = "", model: str = "gpt-4o-mini") -> str:
@@ -542,6 +596,8 @@ __all__ = [
     "reduce_summaries",
     "store_summary",
     "summarize_single_article",
+    "advise_norwegian_beauty_wellness_retailer",
+    "generate_category_advice",
     "ArticleSummary",
     "classify_summary",
     "CategoryDigest",
