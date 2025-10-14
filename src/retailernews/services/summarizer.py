@@ -451,7 +451,7 @@ def map_summarize_articles(
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Skipping {article_path}: {exc}")
             continue
-        print(article_path)
+        
         text = article.get("text", "")
         title = article.get("title", "")
         url = article.get("url", "")
