@@ -250,6 +250,10 @@ INDEX_HTML = """
             <span aria-hidden="true">📝</span>
             Build summary
           </button>
+          <button id="customer-experience" type="button">
+            <span aria-hidden="true">💡</span>
+            Customer Experience
+          </button>
         </div>
         <div class="status" id="status"></div>
       </aside>
@@ -280,6 +284,7 @@ INDEX_HTML = """
 
         const crawlerButton = document.getElementById("run-crawler");
         const summarizerButton = document.getElementById("run-summarizer");
+        const customerExperienceButton = document.getElementById("customer-experience");
         const statusEl = document.getElementById("status");
         const digestPanel = document.getElementById("digest-panel");
         const digestArticle = document.getElementById("digest-article");
@@ -290,6 +295,7 @@ INDEX_HTML = """
         if (
           !crawlerButton ||
           !summarizerButton ||
+          !customerExperienceButton ||
           !statusEl ||
           !digestPanel ||
           !digestArticle ||
@@ -547,8 +553,268 @@ INDEX_HTML = """
           });
         });
 
+        customerExperienceButton.addEventListener("click", () => {
+          window.location.href = "/customer-experience";
+        });
+
         loadStoredDigest();
         loadStoredUrls();
+      });
+    </script>
+  </body>
+</html>
+"""
+
+
+CUSTOMER_EXPERIENCE_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Retailer News | Customer Experience</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        background: #0f172a;
+        color: #0f172a;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(160deg, #fef3c7, #dbeafe 45%, #f8fafc 90%);
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 48px 24px 32px;
+        text-align: center;
+        color: #0f172a;
+      }
+
+      header h1 {
+        margin: 0 0 16px;
+        font-size: clamp(2.5rem, 5vw, 3.25rem);
+        letter-spacing: -0.02em;
+      }
+
+      header p {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #1e293b;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        padding: 0 24px 48px;
+      }
+
+      .summary-card {
+        width: min(900px, 100%);
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 28px;
+        padding: 40px;
+        box-shadow: 0 35px 80px rgba(15, 23, 42, 0.18);
+        backdrop-filter: blur(12px);
+      }
+
+      .summary-card h2 {
+        margin-top: 0;
+        font-size: 1.75rem;
+        color: #1d4ed8;
+      }
+
+      .summary-content {
+        margin-top: 24px;
+        display: grid;
+        gap: 16px;
+        color: #0f172a;
+        line-height: 1.75;
+        font-size: 1.05rem;
+      }
+
+      .summary-content p {
+        margin: 0;
+      }
+
+      nav {
+        position: fixed;
+        top: 24px;
+        left: 24px;
+      }
+
+      nav a {
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-radius: 9999px;
+        background: rgba(15, 23, 42, 0.08);
+        color: #0f172a;
+        font-weight: 600;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      nav a:hover,
+      nav a:focus {
+        background: rgba(37, 99, 235, 0.2);
+        transform: translateY(-1px);
+      }
+
+      .status-message {
+        margin-top: 16px;
+        padding: 12px 16px;
+        border-radius: 16px;
+        background: rgba(37, 99, 235, 0.08);
+        color: #1e3a8a;
+        font-weight: 600;
+      }
+
+      @media (max-width: 720px) {
+        header {
+          padding: 32px 16px 24px;
+        }
+
+        .summary-card {
+          padding: 28px 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">⬅️ Back to dashboard</a>
+    </nav>
+    <header>
+      <h1>Welcome to the Customer Experience hub</h1>
+      <p>Your spotlight on the most impactful CX developments across retail.</p>
+    </header>
+    <main>
+      <section class="summary-card" aria-live="polite">
+        <h2>Category Summary</h2>
+        <div class="summary-content" id="summary-content">
+          <p class="status-message">Loading the latest insights...</p>
+        </div>
+      </section>
+    </main>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        const content = document.getElementById("summary-content");
+
+        if (!content) {
+          return;
+        }
+
+        const ALLOWED_TAGS = new Set([
+          "P",
+          "UL",
+          "OL",
+          "LI",
+          "STRONG",
+          "EM",
+          "B",
+          "I",
+          "H1",
+          "H2",
+          "H3",
+          "H4",
+          "H5",
+          "H6",
+        ]);
+
+        const sanitizeNode = (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            return document.createTextNode(node.textContent ?? "");
+          }
+
+          if (node.nodeType !== Node.ELEMENT_NODE) {
+            return null;
+          }
+
+          if (!ALLOWED_TAGS.has(node.tagName)) {
+            return document.createTextNode(node.textContent ?? "");
+          }
+
+          const sanitized = document.createElement(node.tagName.toLowerCase());
+
+          node.childNodes.forEach((child) => {
+            const sanitizedChild = sanitizeNode(child);
+            if (sanitizedChild) {
+              sanitized.appendChild(sanitizedChild);
+            }
+          });
+
+          return sanitized;
+        };
+
+        const renderSummary = (summary) => {
+          content.innerHTML = "";
+
+          const normalized = (summary ?? "").trim();
+
+          if (!normalized) {
+            const fallback = document.createElement("p");
+            fallback.textContent = "We don't have Customer Experience insights yet. Generate a summary to view fresh updates.";
+            content.appendChild(fallback);
+            return;
+          }
+
+          const parser = new DOMParser();
+          const parsed = parser.parseFromString(`<div>${normalized}</div>`, "text/html");
+          const container = parsed.body.firstElementChild ?? parsed.body;
+          const fragment = document.createDocumentFragment();
+
+          container.childNodes.forEach((node) => {
+            const sanitized = sanitizeNode(node);
+            if (sanitized) {
+              fragment.appendChild(sanitized);
+            }
+          });
+
+          if (!fragment.childNodes.length) {
+            const fallback = document.createElement("p");
+            fallback.textContent = normalized;
+            fragment.appendChild(fallback);
+          }
+
+          content.appendChild(fragment);
+        };
+
+        const loadCustomerExperienceSummary = async () => {
+          try {
+            const response = await fetch("/api/summaries/latest");
+            if (!response.ok) {
+              throw new Error(`Failed to retrieve summary (${response.status})`);
+            }
+
+            const payload = await response.json();
+            const categories = Array.isArray(payload?.categories) ? payload.categories : [];
+
+            const target =
+              categories.find((entry) =>
+                typeof entry?.slug === "string" && entry.slug.toLowerCase() === "customer-experience",
+              ) ||
+              categories.find((entry) =>
+                typeof entry?.name === "string" && entry.name.toLowerCase().includes("customer experience"),
+              );
+
+            renderSummary(target?.summary ?? "");
+          } catch (error) {
+            content.innerHTML = "";
+            const failure = document.createElement("p");
+            failure.className = "status-message";
+            failure.textContent = error.message || "Unable to load Customer Experience insights right now.";
+            content.appendChild(failure);
+          }
+        };
+
+        loadCustomerExperienceSummary();
       });
     </script>
   </body>
@@ -563,6 +829,10 @@ def create_app() -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         return INDEX_HTML
+
+    @app.get("/customer-experience", response_class=HTMLResponse)
+    async def customer_experience() -> str:
+        return CUSTOMER_EXPERIENCE_HTML
 
     return app
 
