@@ -499,7 +499,7 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
                 "Always cite supporting source URLs inline immediately after the relevant sentence "
                 "using the format (Source: https://example.com). Do not place sources in a "
                 "standalone list. Structure the digest as HTML where each major section begins with "
-                "a semantic heading tag such as <h2> or <h3>, followed by paragraph content."
+                "a semantic heading tag such as <h2> or <h3>, followed by paragraph content. You dont have to start with the HTML tag since that is taken care of by the user interface."
             ),
         },
         {

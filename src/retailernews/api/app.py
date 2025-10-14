@@ -462,7 +462,6 @@ INDEX_HTML = """
             digestMessage: "Building your executive digest...",
             onSuccess: (payload) => {
               const digest = payload && payload.digest ? payload.digest.trim() : "";
-              console.log(payload.categories);
               renderDigestArticle(digest);
               digestPanel.classList.add("visible");
             },
