@@ -300,14 +300,93 @@ INDEX_HTML = """
           return;
         }
 
+        const ALLOWED_TAGS = new Set([
+          "P",
+          "H1",
+          "H2",
+          "H3",
+          "H4",
+          "H5",
+          "H6",
+          "UL",
+          "OL",
+          "LI",
+          "STRONG",
+          "EM",
+          "B",
+          "I",
+          "U",
+          "BLOCKQUOTE",
+          "HR",
+          "BR",
+          "SPAN",
+          "DIV",
+          "A",
+        ]);
+
+        const sanitizeNode = (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            return document.createTextNode(node.textContent ?? "");
+          }
+
+          if (node.nodeType !== Node.ELEMENT_NODE) {
+            return null;
+          }
+
+          if (!ALLOWED_TAGS.has(node.tagName)) {
+            return document.createTextNode(node.textContent ?? "");
+          }
+
+          const sanitized = document.createElement(node.tagName.toLowerCase());
+
+          if (node.tagName === "A") {
+            const href = node.getAttribute("href");
+            if (href) {
+              sanitized.setAttribute("href", href);
+              sanitized.setAttribute("target", "_blank");
+              sanitized.setAttribute("rel", "noopener noreferrer");
+            }
+          }
+
+          node.childNodes.forEach((child) => {
+            const sanitizedChild = sanitizeNode(child);
+            if (sanitizedChild) {
+              sanitized.appendChild(sanitizedChild);
+            }
+          });
+
+          return sanitized;
+        };
+
         const renderDigestArticle = (text) => {
-          const paragraphs = text
-            .replace(/\\r/g, "")
+          const normalized = (text ?? "").replace(/\\r/g, "");
+          const containsMarkup = /<\\s*[a-z][^>]*>/i.test(normalized);
+
+          digestArticle.innerHTML = "";
+
+          if (containsMarkup) {
+            const parser = new DOMParser();
+            const parsed = parser.parseFromString(`<div>${normalized}</div>`, "text/html");
+            const container = parsed.body.firstElementChild ?? parsed.body;
+            const fragment = document.createDocumentFragment();
+
+            container.childNodes.forEach((node) => {
+              const sanitized = sanitizeNode(node);
+              if (sanitized) {
+                fragment.appendChild(sanitized);
+              }
+            });
+
+            if (fragment.childNodes.length) {
+              digestArticle.appendChild(fragment);
+              return;
+            }
+          }
+
+          const paragraphs = normalized
             .split(/\\n{2,}/)
             .map((paragraph) => paragraph.trim())
             .filter(Boolean);
-
-          digestArticle.innerHTML = "";
 
           if (!paragraphs.length) {
             const fallback = document.createElement("p");
