@@ -93,6 +93,19 @@ def _get_client() -> "OpenAI":
     return _client
 
 
+_DEFAULT_CATEGORY_ADVICE_PROMPT = (
+    "We operate a retail organisation. Based on the category summary, recommend how we should "
+    "respond to the highlighted trends. Provide immediate actions, medium-term initiatives, and "
+    "potential collaboration opportunities or capability gaps we should address."
+)
+
+
+def default_category_advice_prompt() -> str:
+    """Return the default prompt used when generating strategic category advice."""
+
+    return _DEFAULT_CATEGORY_ADVICE_PROMPT
+
+
 def generate_category_advice(
     category_summary: str,
     prompt: str,
@@ -597,6 +610,7 @@ __all__ = [
     "store_summary",
     "summarize_single_article",
     "advise_norwegian_beauty_wellness_retailer",
+    "default_category_advice_prompt",
     "generate_category_advice",
     "ArticleSummary",
     "classify_summary",
