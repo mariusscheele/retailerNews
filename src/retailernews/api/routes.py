@@ -16,7 +16,11 @@ from pydantic import BaseModel, Field, ValidationError
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, ensure_blob_root
 from retailernews.config import AppConfig
 from retailernews.services.crawler import SiteCrawlResult, SiteCrawler
-from retailernews.services.summarizer import map_reduce_summarize
+from retailernews.services.summarizer import (
+    default_category_advice_prompt,
+    generate_category_advice,
+    map_reduce_summarize,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,13 @@ class SummariesResponse(BaseModel):
     blob_root: str
     model: str
     categories: List[CategorySummary] = Field(default_factory=list)
+
+
+class CategoryAdviceResponse(BaseModel):
+    category: CategorySummary
+    prompt: str
+    advice: str
+    model: str
 
 
 class StoredUrlsResponse(BaseModel):
@@ -177,3 +188,50 @@ async def retrieve_latest_summary() -> SummariesResponse:
         return stored
 
     return SummariesResponse(digest="", blob_root=str(DEFAULT_BLOB_ROOT), model="", categories=[])
+
+
+@router.get("/summaries/{category_slug}/advice", response_model=CategoryAdviceResponse)
+async def retrieve_category_advice(category_slug: str, model: str = "gpt-4o-mini") -> CategoryAdviceResponse:
+    """Return strategic guidance for the requested category using the latest summary."""
+
+    stored = load_latest_digest()
+    if stored is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No stored summaries are available. Generate a summary to view strategic guidance.",
+        )
+
+    normalised_slug = category_slug.strip().lower()
+
+    def _matches(entry: CategorySummary) -> bool:
+        if entry.slug and entry.slug.lower() == normalised_slug:
+            return True
+        return bool(entry.name and entry.name.lower().replace(" ", "-") == normalised_slug)
+
+    target = next((entry for entry in stored.categories if _matches(entry)), None)
+
+    if target is None:
+        display_name = category_slug.strip()
+        if display_name:
+            display_name = display_name.replace("-", " ").strip().title()
+        else:
+            display_name = "the requested category"
+        raise HTTPException(
+            status_code=404,
+            detail=f"No category named '{display_name}' was found in the latest summary.",
+        )
+
+    prompt = default_category_advice_prompt()
+
+    try:
+        advice = await run_in_threadpool(
+            generate_category_advice,
+            target.summary,
+            prompt,
+            model=model,
+        )
+    except Exception as exc:  # pragma: no cover - defensive guard for external service errors
+        logger.exception("Failed to generate category advice for %s", category_slug)
+        raise HTTPException(status_code=500, detail="Failed to generate strategic guidance.") from exc
+
+    return CategoryAdviceResponse(category=target, prompt=prompt, advice=advice, model=model)

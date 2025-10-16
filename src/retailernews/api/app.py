@@ -642,6 +642,32 @@ CUSTOMER_EXPERIENCE_HTML = """
         margin: 0;
       }
 
+      .advice-section {
+        margin-top: 48px;
+        padding-top: 32px;
+        border-top: 1px solid rgba(15, 23, 42, 0.12);
+        display: grid;
+        gap: 20px;
+      }
+
+      .advice-section h3 {
+        margin: 0;
+        font-size: 1.35rem;
+        color: #0f172a;
+      }
+
+      .advice-content {
+        display: grid;
+        gap: 16px;
+        color: #0f172a;
+        line-height: 1.7;
+        font-size: 1.02rem;
+      }
+
+      .advice-content p {
+        margin: 0;
+      }
+
       nav {
         position: fixed;
         top: 24px;
@@ -701,13 +727,20 @@ CUSTOMER_EXPERIENCE_HTML = """
         <div class="summary-content" id="summary-content">
           <p class="status-message">Loading the latest insights...</p>
         </div>
+        <div class="advice-section" id="advice-section">
+          <h3>Strategic Guidance</h3>
+          <div class="advice-content" id="advice-content">
+            <p class="status-message">Preparing tailored recommendations...</p>
+          </div>
+        </div>
       </section>
     </main>
     <script>
       window.addEventListener("DOMContentLoaded", () => {
-        const content = document.getElementById("summary-content");
+        const summaryContent = document.getElementById("summary-content");
+        const adviceContent = document.getElementById("advice-content");
 
-        if (!content) {
+        if (!summaryContent || !adviceContent) {
           return;
         }
 
@@ -753,24 +786,34 @@ CUSTOMER_EXPERIENCE_HTML = """
           return sanitized;
         };
 
-        const renderSummary = (summary) => {
-          content.innerHTML = "";
+        const showStatusMessage = (container, message) => {
+          container.innerHTML = "";
+          const status = document.createElement("p");
+          status.className = "status-message";
+          status.textContent = message;
+          container.appendChild(status);
+        };
 
-          const normalized = (summary ?? "").trim();
+        const renderSanitizedHtml = (container, html, emptyMessage) => {
+          container.innerHTML = "";
+
+          const normalized = (html ?? "").trim();
 
           if (!normalized) {
-            const fallback = document.createElement("p");
-            fallback.textContent = "We don't have Customer Experience insights yet. Generate a summary to view fresh updates.";
-            content.appendChild(fallback);
+            if (emptyMessage) {
+              const fallback = document.createElement("p");
+              fallback.textContent = emptyMessage;
+              container.appendChild(fallback);
+            }
             return;
           }
 
           const parser = new DOMParser();
           const parsed = parser.parseFromString(`<div>${normalized}</div>`, "text/html");
-          const container = parsed.body.firstElementChild ?? parsed.body;
+          const parsedContainer = parsed.body.firstElementChild ?? parsed.body;
           const fragment = document.createDocumentFragment();
 
-          container.childNodes.forEach((node) => {
+          parsedContainer.childNodes.forEach((node) => {
             const sanitized = sanitizeNode(node);
             if (sanitized) {
               fragment.appendChild(sanitized);
@@ -783,7 +826,7 @@ CUSTOMER_EXPERIENCE_HTML = """
             fragment.appendChild(fallback);
           }
 
-          content.appendChild(fragment);
+          container.appendChild(fragment);
         };
 
         const loadCustomerExperienceSummary = async () => {
@@ -804,17 +847,42 @@ CUSTOMER_EXPERIENCE_HTML = """
                 typeof entry?.name === "string" && entry.name.toLowerCase().includes("customer experience"),
               );
 
-            renderSummary(target?.summary ?? "");
+            renderSanitizedHtml(
+              summaryContent,
+              target?.summary ?? "",
+              "We don't have Customer Experience insights yet. Generate a summary to view fresh updates.",
+            );
           } catch (error) {
-            content.innerHTML = "";
-            const failure = document.createElement("p");
-            failure.className = "status-message";
-            failure.textContent = error.message || "Unable to load Customer Experience insights right now.";
-            content.appendChild(failure);
+            showStatusMessage(
+              summaryContent,
+              error.message || "Unable to load Customer Experience insights right now.",
+            );
+          }
+        };
+
+        const loadCustomerExperienceAdvice = async () => {
+          try {
+            const response = await fetch("/api/summaries/customer-experience/advice");
+            if (!response.ok) {
+              throw new Error(`Failed to retrieve strategic guidance (${response.status})`);
+            }
+
+            const payload = await response.json();
+            renderSanitizedHtml(
+              adviceContent,
+              payload?.advice ?? "",
+              "Strategic guidance will appear here after the next summary run.",
+            );
+          } catch (error) {
+            showStatusMessage(
+              adviceContent,
+              error.message || "Unable to load strategic guidance right now.",
+            );
           }
         };
 
         loadCustomerExperienceSummary();
+        loadCustomerExperienceAdvice();
       });
     </script>
   </body>
