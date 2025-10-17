@@ -21,7 +21,11 @@ _ADVICE_SYSTEM_PROMPT = (
     "highlighting quick wins, longer-term moves, operational considerations, "
     "and any Nordic market nuances such as consumer expectations, sustainability "
     "requirements, or regulatory factors. Always organise your response using "
-    "succinct bullet points grouped under helpful sub-headings."
+    "succinct bullet points grouped under helpful sub-headings. Structure the "
+    "entire response as HTML, using semantic heading tags such as <h2> or <h3> "
+    "for each section, wrapping explanatory text in <p> elements, and presenting "
+    "recommendations within <ul> and <li> tags. Do not include outer <html> or "
+    "<body> tags as the interface supplies them."
 )
 
 try:  # pragma: no cover - optional dependency during tests
@@ -442,15 +446,19 @@ def _summarize_category_articles(
                 "You are an assistant that synthesises retail news into concise digests for executives. "
                 "Write a single cohesive summary that blends the key developments, risks, and opportunities "
                 "across the provided updates using well-structured paragraphs. Avoid bullet points or numbered "
-                "lists so the result reads like an executive briefing. Always reference supporting URLs inline using the format "
-                "(Source: https://example.com)."
+                "lists so the result reads like an executive briefing. Structure the summary as HTML where each "
+                "major section begins with a semantic heading tag such as <h2> or <h3>, followed by paragraphs "
+                "wrapped in <p> tags. You do not need to include surrounding <html> or <body> tags. Always reference "
+                "supporting URLs inline using the format (Source: https://example.com)."
             ),
         },
         {
             "role": "user",
             "content": (
                 "Create a category summary that highlights what retail leaders should know. Keep it focused "
-                "and action-oriented while citing the relevant source URL immediately after each fact.\n\n"
+                "and action-oriented while citing the relevant source URL immediately after each fact. Use HTML "
+                "heading elements (e.g., <h2>) for section titles and wrap supporting text in <p> tags so the "
+                "output renders as structured HTML without including enclosing <html> or <body> tags.\n\n"
                 f"Article updates:\n{truncated_text}"
             ),
         },
