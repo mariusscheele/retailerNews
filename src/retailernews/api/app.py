@@ -621,6 +621,8 @@ CUSTOMER_EXPERIENCE_HTML = """
         padding: 40px;
         box-shadow: 0 35px 80px rgba(15, 23, 42, 0.18);
         backdrop-filter: blur(12px);
+        display: grid;
+        gap: 32px;
       }
 
       .summary-card h2 {
@@ -630,7 +632,6 @@ CUSTOMER_EXPERIENCE_HTML = """
       }
 
       .summary-content {
-        margin-top: 24px;
         display: grid;
         gap: 16px;
         color: #0f172a;
@@ -640,6 +641,102 @@ CUSTOMER_EXPERIENCE_HTML = """
 
       .summary-content p {
         margin: 0;
+      }
+
+      .prompt-panel {
+        border-radius: 24px;
+        padding: 24px;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(79, 70, 229, 0.08));
+        border: 1px solid rgba(59, 130, 246, 0.18);
+        display: grid;
+        gap: 16px;
+      }
+
+      .prompt-panel h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #1e3a8a;
+      }
+
+      .prompt-panel p {
+        margin: 0;
+        color: #334155;
+        line-height: 1.6;
+      }
+
+      .prompt-label {
+        font-weight: 600;
+        color: #1f2937;
+      }
+
+      .prompt-input {
+        width: 100%;
+        min-height: 110px;
+        border-radius: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        padding: 14px 16px;
+        font-size: 1rem;
+        line-height: 1.6;
+        resize: vertical;
+        font-family: inherit;
+        color: #0f172a;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+      }
+
+      .prompt-input:focus {
+        outline: none;
+        border-color: rgba(37, 99, 235, 0.6);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+      }
+
+      .prompt-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .prompt-submit {
+        appearance: none;
+        border: none;
+        border-radius: 9999px;
+        padding: 12px 24px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: white;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 12px 30px rgba(37, 99, 235, 0.25);
+      }
+
+      .prompt-submit:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 32px rgba(37, 99, 235, 0.3);
+      }
+
+      .prompt-submit:disabled {
+        opacity: 0.65;
+        cursor: wait;
+        box-shadow: none;
+      }
+
+      .prompt-hint {
+        font-size: 0.9rem;
+        color: #475569;
+      }
+
+      .prompt-feedback {
+        margin-top: 4px;
+        min-height: 1.5em;
+        font-size: 0.95rem;
+        color: #1e3a8a;
+        font-weight: 600;
+      }
+
+      .prompt-feedback.error {
+        color: #b91c1c;
       }
 
       .advice-section {
@@ -710,6 +807,19 @@ CUSTOMER_EXPERIENCE_HTML = """
         .summary-card {
           padding: 28px 20px;
         }
+
+        .prompt-panel {
+          padding: 20px;
+        }
+
+        .prompt-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .prompt-submit {
+          width: 100%;
+        }
       }
     </style>
   </head>
@@ -727,6 +837,32 @@ CUSTOMER_EXPERIENCE_HTML = """
         <div class="summary-content" id="summary-content">
           <p class="status-message">Loading the latest insights...</p>
         </div>
+        <div class="prompt-panel" id="advice-prompt-panel">
+          <div>
+            <h3>Shape the strategic guidance</h3>
+            <p>
+              Add context or priorities to tailor the recommendations generated from the
+              Customer Experience digest.
+            </p>
+          </div>
+          <label class="prompt-label" for="advice-prompt-input">Guidance focus</label>
+          <textarea
+            class="prompt-input"
+            id="advice-prompt-input"
+            name="advice-prompt"
+            rows="4"
+            placeholder="Describe the outcomes, constraints, or focus areas you want the advice to cover"
+          ></textarea>
+          <div class="prompt-actions">
+            <button type="button" class="prompt-submit" id="advice-prompt-submit">
+              Generate strategic guidance
+            </button>
+            <p class="prompt-hint">
+              Tip: include goals such as "improve loyalty" or "compare digital vs. in-store focus".
+            </p>
+          </div>
+          <p class="prompt-feedback" id="advice-prompt-feedback" aria-live="polite"></p>
+        </div>
         <div class="advice-section" id="advice-section">
           <h3>Strategic Guidance</h3>
           <div class="advice-content" id="advice-content">
@@ -739,6 +875,11 @@ CUSTOMER_EXPERIENCE_HTML = """
       window.addEventListener("DOMContentLoaded", () => {
         const summaryContent = document.getElementById("summary-content");
         const adviceContent = document.getElementById("advice-content");
+        const promptInput = document.getElementById("advice-prompt-input");
+        const promptSubmit = document.getElementById("advice-prompt-submit");
+        const promptFeedback = document.getElementById("advice-prompt-feedback");
+        const ADVICE_EMPTY_MESSAGE =
+          "Strategic guidance will appear here after the next summary run.";
 
         if (!summaryContent || !adviceContent) {
           return;
@@ -760,6 +901,21 @@ CUSTOMER_EXPERIENCE_HTML = """
           "H5",
           "H6",
         ]);
+
+        const setPromptFeedback = (message, isError = false) => {
+          if (!promptFeedback) {
+            return;
+          }
+
+          const normalizedMessage = typeof message === "string" ? message.trim() : "";
+          promptFeedback.textContent = normalizedMessage;
+
+          if (normalizedMessage && isError) {
+            promptFeedback.classList.add("error");
+          } else {
+            promptFeedback.classList.remove("error");
+          }
+        };
 
         const sanitizeNode = (node) => {
           if (node.nodeType === Node.TEXT_NODE) {
@@ -829,6 +985,69 @@ CUSTOMER_EXPERIENCE_HTML = """
           container.appendChild(fragment);
         };
 
+        const requestStrategicGuidance = async () => {
+          if (!adviceContent) {
+            return;
+          }
+
+          if (!promptSubmit || !promptInput) {
+            showStatusMessage(adviceContent, "Unable to send a prompt from this browser.");
+            setPromptFeedback(
+              "We couldn't find the prompt input in the page. Refresh and try again.",
+              true,
+            );
+            return;
+          }
+
+          const promptValue = promptInput.value.trim();
+          if (!promptValue) {
+            setPromptFeedback("Please enter a prompt before requesting new guidance.", true);
+            promptInput.focus();
+            return;
+          }
+
+          const originalLabel = promptSubmit.textContent?.trim() || "Generate strategic guidance";
+          promptSubmit.disabled = true;
+          promptSubmit.textContent = "Generating...";
+          setPromptFeedback("Requesting tailored guidance...");
+          showStatusMessage(adviceContent, "Requesting tailored guidance...");
+
+          try {
+            const response = await fetch("/api/summaries/customer-experience/advice", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt: promptValue }),
+            });
+
+            if (!response.ok) {
+              const detail = await response.text();
+              throw new Error(
+                detail?.trim() || `Failed to generate strategic guidance (${response.status})`,
+              );
+            }
+
+            const payload = await response.json();
+            renderSanitizedHtml(adviceContent, payload?.advice ?? "", ADVICE_EMPTY_MESSAGE);
+
+            if (promptInput && typeof payload?.prompt === "string") {
+              promptInput.value = payload.prompt;
+            }
+
+            const timestamp = new Date().toLocaleTimeString();
+            setPromptFeedback(`Updated at ${timestamp}.`);
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Unable to generate strategic guidance right now.";
+            showStatusMessage(adviceContent, message);
+            setPromptFeedback(message, true);
+          } finally {
+            promptSubmit.disabled = false;
+            promptSubmit.textContent = originalLabel;
+          }
+        };
+
         const loadCustomerExperienceSummary = async () => {
           try {
             const response = await fetch("/api/summaries/latest");
@@ -861,6 +1080,8 @@ CUSTOMER_EXPERIENCE_HTML = """
         };
 
         const loadCustomerExperienceAdvice = async () => {
+          setPromptFeedback("Loading the latest strategic guidance...");
+
           try {
             const response = await fetch("/api/summaries/customer-experience/advice");
             if (!response.ok) {
@@ -868,18 +1089,39 @@ CUSTOMER_EXPERIENCE_HTML = """
             }
 
             const payload = await response.json();
-            renderSanitizedHtml(
-              adviceContent,
-              payload?.advice ?? "",
-              "Strategic guidance will appear here after the next summary run.",
-            );
+            renderSanitizedHtml(adviceContent, payload?.advice ?? "", ADVICE_EMPTY_MESSAGE);
+
+            const payloadPrompt = typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
+            if (promptInput && payloadPrompt && !promptInput.value.trim()) {
+              promptInput.value = payloadPrompt;
+            }
+
+            const timestamp = new Date().toLocaleTimeString();
+            setPromptFeedback(`Loaded the latest saved guidance at ${timestamp}.`);
           } catch (error) {
-            showStatusMessage(
-              adviceContent,
-              error.message || "Unable to load strategic guidance right now.",
-            );
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Unable to load strategic guidance right now.";
+            showStatusMessage(adviceContent, message);
+            setPromptFeedback(message, true);
           }
         };
+
+        if (promptSubmit) {
+          promptSubmit.addEventListener("click", () => {
+            requestStrategicGuidance();
+          });
+        }
+
+        if (promptInput) {
+          promptInput.addEventListener("keydown", (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              requestStrategicGuidance();
+            }
+          });
+        }
 
         loadCustomerExperienceSummary();
         loadCustomerExperienceAdvice();

@@ -54,6 +54,11 @@ class SummariesResponse(BaseModel):
     categories: List[CategorySummary] = Field(default_factory=list)
 
 
+class CategoryAdviceRequest(BaseModel):
+    prompt: str | None = None
+    model: str | None = None
+
+
 class CategoryAdviceResponse(BaseModel):
     category: CategorySummary
     prompt: str
@@ -190,10 +195,12 @@ async def retrieve_latest_summary() -> SummariesResponse:
     return SummariesResponse(digest="", blob_root=str(DEFAULT_BLOB_ROOT), model="", categories=[])
 
 
-@router.get("/summaries/{category_slug}/advice", response_model=CategoryAdviceResponse)
-async def retrieve_category_advice(category_slug: str, model: str = "gpt-4o-mini") -> CategoryAdviceResponse:
-    """Return strategic guidance for the requested category using the latest summary."""
-
+async def _build_category_advice(
+    category_slug: str,
+    *,
+    prompt: str | None = None,
+    model: str = "gpt-4o-mini",
+) -> CategoryAdviceResponse:
     stored = load_latest_digest()
     if stored is None:
         raise HTTPException(
@@ -221,17 +228,36 @@ async def retrieve_category_advice(category_slug: str, model: str = "gpt-4o-mini
             detail=f"No category named '{display_name}' was found in the latest summary.",
         )
 
-    prompt = default_category_advice_prompt()
+    final_prompt = (prompt or "").strip() or default_category_advice_prompt()
 
     try:
         advice = await run_in_threadpool(
             generate_category_advice,
             target.summary,
-            prompt,
+            final_prompt,
             model=model,
         )
     except Exception as exc:  # pragma: no cover - defensive guard for external service errors
         logger.exception("Failed to generate category advice for %s", category_slug)
         raise HTTPException(status_code=500, detail="Failed to generate strategic guidance.") from exc
 
-    return CategoryAdviceResponse(category=target, prompt=prompt, advice=advice, model=model)
+    return CategoryAdviceResponse(category=target, prompt=final_prompt, advice=advice, model=model)
+
+
+@router.get("/summaries/{category_slug}/advice", response_model=CategoryAdviceResponse)
+async def retrieve_category_advice(category_slug: str, model: str = "gpt-4o-mini") -> CategoryAdviceResponse:
+    """Return strategic guidance for the requested category using the latest summary."""
+
+    return await _build_category_advice(category_slug, model=model)
+
+
+@router.post("/summaries/{category_slug}/advice", response_model=CategoryAdviceResponse)
+async def generate_category_advice_for_prompt(
+    category_slug: str, payload: CategoryAdviceRequest
+) -> CategoryAdviceResponse:
+    """Generate strategic guidance for a category using a supplied prompt."""
+
+    model = payload.model or "gpt-4o-mini"
+    prompt = payload.prompt or ""
+
+    return await _build_category_advice(category_slug, prompt=prompt, model=model)
