@@ -254,6 +254,10 @@ INDEX_HTML = """
             <span aria-hidden="true">💡</span>
             Customer Experience
           </button>
+          <button id="customer-loyalty" type="button">
+            <span aria-hidden="true">🧠</span>
+            Customer Loyalty
+          </button>
         </div>
         <div class="status" id="status"></div>
       </aside>
@@ -285,6 +289,7 @@ INDEX_HTML = """
         const crawlerButton = document.getElementById("run-crawler");
         const summarizerButton = document.getElementById("run-summarizer");
         const customerExperienceButton = document.getElementById("customer-experience");
+        const customerLoyaltyButton = document.getElementById("customer-loyalty");
         const statusEl = document.getElementById("status");
         const digestPanel = document.getElementById("digest-panel");
         const digestArticle = document.getElementById("digest-article");
@@ -296,6 +301,7 @@ INDEX_HTML = """
           !crawlerButton ||
           !summarizerButton ||
           !customerExperienceButton ||
+          !customerLoyaltyButton ||
           !statusEl ||
           !digestPanel ||
           !digestArticle ||
@@ -555,6 +561,10 @@ INDEX_HTML = """
 
         customerExperienceButton.addEventListener("click", () => {
           window.location.href = "/customer-experience";
+        });
+
+        customerLoyaltyButton.addEventListener("click", () => {
+          window.location.href = "/customer-loyalty";
         });
 
         loadStoredDigest();
@@ -1132,6 +1142,23 @@ CUSTOMER_EXPERIENCE_HTML = """
 """
 
 
+CUSTOMER_LOYALTY_HTML = (
+    CUSTOMER_EXPERIENCE_HTML
+    .replace("Customer Experience", "Customer Loyalty")
+    .replace("customer-experience", "customer-loyalty")
+    .replace("CustomerExperience", "CustomerLoyalty")
+    .replace("customerExperience", "customerLoyalty")
+    .replace(
+        "Your spotlight on the most impactful CX developments across retail.",
+        "Your hub for the latest loyalty and retention strategies across retail.",
+    )
+    .replace(
+        'Tip: include goals such as "improve loyalty" or "compare digital vs. in-store focus".',
+        'Tip: include prompts such as "increase repeat purchases" or "reward top-tier members".',
+    )
+)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Retailer News", description="Retail insights crawler API")
     app.include_router(router, prefix="/api")
@@ -1143,6 +1170,10 @@ def create_app() -> FastAPI:
     @app.get("/customer-experience", response_class=HTMLResponse)
     async def customer_experience() -> str:
         return CUSTOMER_EXPERIENCE_HTML
+
+    @app.get("/customer-loyalty", response_class=HTMLResponse)
+    async def customer_loyalty() -> str:
+        return CUSTOMER_LOYALTY_HTML
 
     return app
 

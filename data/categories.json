@@ -25,6 +25,23 @@
       ]
     },
     {
+      "name": "Customer Loyalty",
+      "topics": [
+        {
+          "name": "Retention Strategies",
+          "keywords": ["customer loyalty", "retention", "repeat purchase", "churn"]
+        },
+        {
+          "name": "Rewards Innovation",
+          "keywords": ["loyalty program", "rewards", "member perks", "points"]
+        },
+        {
+          "name": "Community Building",
+          "keywords": ["community", "advocacy", "vip", "ambassador"]
+        }
+      ]
+    },
+    {
       "name": "Economy",
       "topics": [
         {
