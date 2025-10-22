@@ -112,3 +112,17 @@ def test_retrieve_category_advice_returns_404_for_unknown_category() -> None:
 
     assert response.status_code == 404
     assert "Customer Experience" in response.json()["detail"]
+
+
+def test_customer_loyalty_page_is_served() -> None:
+    """The dedicated customer loyalty workspace should be accessible."""
+
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/customer-loyalty")
+
+    assert response.status_code == 200
+    body = response.text
+    assert "Customer Loyalty hub" in body
+    assert "/api/summaries/customer-loyalty/advice" in body
