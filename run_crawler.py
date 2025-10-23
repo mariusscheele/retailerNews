@@ -35,7 +35,12 @@ def main() -> None:
     for site in config.sites:
         logging.info("Crawling %s (%s)", site.name, site.url)
         try:
-            result = crawler.fetch(site)
+            result = crawler.fetch(
+                site,
+                use_sitemap=site.use_sitemap,
+                sitemap_url=str(site.sitemap_url) if site.sitemap_url is not None else None,
+                filter_path=site.filter_path,
+            )
         except requests.RequestException as exc:
             logging.error("Failed to crawl %s: %s", site.url, exc)
             continue

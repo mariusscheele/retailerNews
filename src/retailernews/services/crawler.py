@@ -349,15 +349,37 @@ class SiteCrawler:
     discover_links_from_sitemap = staticmethod(discover_links_from_sitemap)
     crawl = staticmethod(crawl)
 
-    def fetch(self, site: SiteConfig) -> SiteCrawlResult:
-        """Fetch a site, extract article links and retrieve new article content."""
+    def fetch(
+        self,
+        site: SiteConfig,
+        *,
+        use_sitemap: bool | None = None,
+        sitemap_url: str | HttpUrl | None = None,
+        filter_path: str | None = None,
+    ) -> SiteCrawlResult:
+        """Fetch a site, extract article links and retrieve new article content.
+
+        Parameters can be provided explicitly to override the values stored on the
+        :class:`~retailernews.config.SiteConfig` instance. This mirrors the
+        previous interface that accepted discrete keyword arguments when running
+        the crawler as a script.
+        """
 
         base_url = str(site.url)
 
-        if site.use_sitemap:
-            if not site.sitemap_url:
+        resolved_use_sitemap = site.use_sitemap if use_sitemap is None else use_sitemap
+        resolved_filter_path = site.filter_path if filter_path is None else filter_path
+        if sitemap_url is not None:
+            resolved_sitemap_url = str(sitemap_url)
+        elif site.sitemap_url is not None:
+            resolved_sitemap_url = str(site.sitemap_url)
+        else:
+            resolved_sitemap_url = None
+
+        if resolved_use_sitemap:
+            if not resolved_sitemap_url:
                 raise ValueError("Sitemap URL must be provided when use_sitemap is True")
-            links = self.discover_links_from_sitemap(str(site.sitemap_url), site.filter_path)
+            links = self.discover_links_from_sitemap(resolved_sitemap_url, resolved_filter_path)
             discovered_articles = [
                 Article(url=link, topics=list(site.topics), summary=self._build_summary(title="", url=link))
                 for link in links
