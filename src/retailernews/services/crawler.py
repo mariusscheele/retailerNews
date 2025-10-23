@@ -11,8 +11,10 @@ from typing import Iterator, List, Sequence, Set
 from urllib.parse import urljoin, urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field, HttpUrl
+from urllib3.util.retry import Retry
 
 from retailernews.config import SiteConfig
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
@@ -28,11 +30,34 @@ DEFAULT_HEADERS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/129.0.0.0 Safari/537.36"
-    )
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "keep-alive",
 }
 
 # Alias used by helper functions for parity with ``src/services`` module.
 HEADERS = DEFAULT_HEADERS
+
+SITEMAP_REQUEST_TIMEOUT = (20, 180)
+
+_sitemap_retry = Retry(
+    total=3,
+    connect=3,
+    read=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods={"GET"},
+)
+
+_sitemap_session = requests.Session()
+_sitemap_session.headers.update(HEADERS)
+_sitemap_session.mount("https://", HTTPAdapter(max_retries=_sitemap_retry))
+_sitemap_session.mount("http://", HTTPAdapter(max_retries=_sitemap_retry))
 
 
 def store_json(path: str, payload: dict, *, blob_root: Path | str | None = None) -> None:
@@ -245,7 +270,7 @@ def discover_links_from_sitemap(
 ) -> List[str]:
     """Parse sitemap.xml and return links (optionally filtered by path)."""
 
-    response = requests.get(sitemap_url, headers=HEADERS, timeout=(10, 120))
+    response = _sitemap_session.get(sitemap_url, timeout=SITEMAP_REQUEST_TIMEOUT)
     
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "xml")
