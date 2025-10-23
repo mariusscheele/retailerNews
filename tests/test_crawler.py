@@ -188,3 +188,41 @@ def test_fetch_filters_articles_by_root(monkeypatch) -> None:
     assert recorded_urls == ["https://example.com/story"]
     assert [str(article.url) for article in result.articles] == ["https://example.com/story"]
     assert stored_payloads
+
+
+def test_fetch_accepts_sitemap_arguments(monkeypatch) -> None:
+    site = SiteConfig(name="Example", url="https://example.com", topics=[])
+    crawler = SiteCrawler()
+
+    article_text = "lorem ipsum " * 20
+    captured: dict[str, str | None] = {}
+
+    def fake_discover(sitemap_url, filter_path=None):
+        captured["sitemap_url"] = sitemap_url
+        captured["filter_path"] = filter_path
+        return ["https://example.com/story"]
+
+    monkeypatch.setattr(crawler, "discover_links_from_sitemap", fake_discover)
+
+    def fake_get(url, timeout):
+        if url == "https://example.com/story":
+            return DummyResponse("<html>content</html>")
+        raise AssertionError(f"Unexpected request for {url}")
+
+    crawler._session = SimpleNamespace(get=fake_get)
+    monkeypatch.setattr(crawler, "extract_text", lambda html: ("Story", article_text))
+    monkeypatch.setattr(crawler, "find_published_date", lambda html: None)
+    monkeypatch.setattr(crawler, "article_path", lambda url: "path/to/article.json")
+    monkeypatch.setattr(crawler, "has_been_extracted", lambda url, blob_root=None: False)
+    monkeypatch.setattr(crawler, "store_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(crawler, "record_stored_url", lambda *args, **kwargs: None)
+
+    result = crawler.fetch(
+        site,
+        use_sitemap=True,
+        sitemap_url="https://example.com/sitemap.xml",
+        filter_path="retail",
+    )
+
+    assert [str(article.url) for article in result.articles] == ["https://example.com/story"]
+    assert captured == {"sitemap_url": "https://example.com/sitemap.xml", "filter_path": "retail"}

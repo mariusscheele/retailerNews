@@ -129,7 +129,13 @@ async def trigger_crawler() -> CrawlResponse:
 
     for site in config.sites:
         try:
-            result: SiteCrawlResult = await run_in_threadpool(crawler.fetch, site)
+            result: SiteCrawlResult = await run_in_threadpool(
+                crawler.fetch,
+                site,
+                use_sitemap=site.use_sitemap,
+                sitemap_url=str(site.sitemap_url) if site.sitemap_url is not None else None,
+                filter_path=site.filter_path,
+            )
         except requests.RequestException as exc:
             logger.exception("Failed to crawl %s", site.url)
             errors.append(CrawlError(site=site.name, url=str(site.url), error=str(exc)))
