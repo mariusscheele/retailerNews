@@ -7,8 +7,6 @@ import logging
 import sys
 from pathlib import Path
 
-import requests
-
 # Ensure the src directory is on the Python path so the retailernews package can be imported
 SRC_PATH = Path(__file__).resolve().parent / "src"
 if str(SRC_PATH) not in sys.path:
@@ -40,8 +38,9 @@ def main() -> None:
                 use_sitemap=site.use_sitemap,
                 sitemap_url=str(site.sitemap_url) if site.sitemap_url is not None else None,
                 filter_path=site.filter_path,
+                use_playwright=site.use_playwright,
             )
-        except requests.RequestException as exc:
+        except Exception as exc:
             logging.error("Failed to crawl %s: %s", site.url, exc)
             continue
         results.append(result.model_dump())
