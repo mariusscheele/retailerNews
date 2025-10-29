@@ -43,7 +43,7 @@ DEFAULT_HEADERS = {
 # Alias used by helper functions for parity with ``src/services`` module.
 HEADERS = DEFAULT_HEADERS
 
-SITEMAP_REQUEST_TIMEOUT = (20, 180)
+SITEMAP_REQUEST_TIMEOUT = (20, 300)
 
 _sitemap_retry = Retry(
     total=3,
@@ -269,9 +269,8 @@ def discover_links_from_sitemap(
     sitemap_url: str, filter_path: str | None = None
 ) -> List[str]:
     """Parse sitemap.xml and return links (optionally filtered by path)."""
-
+    print("Kommer her")
     response = _sitemap_session.get(sitemap_url, timeout=SITEMAP_REQUEST_TIMEOUT)
-    
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "xml")
     urls = [loc.text for loc in soup.find_all("loc")]
