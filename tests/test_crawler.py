@@ -150,7 +150,7 @@ def test_fetch_filters_articles_by_root(monkeypatch) -> None:
     monkeypatch.setattr(
         crawler,
         "discover_links_from_sitemap",
-        lambda sitemap_url, filter_path=None: [
+        lambda sitemap_url, filter_path=None, use_playwright=False: [
             "https://example.com/story",
             "https://other.com/story",
         ],
@@ -197,7 +197,7 @@ def test_fetch_accepts_sitemap_arguments(monkeypatch) -> None:
     article_text = "lorem ipsum " * 20
     captured: dict[str, str | None] = {}
 
-    def fake_discover(sitemap_url, filter_path=None):
+    def fake_discover(sitemap_url, filter_path=None, use_playwright=False):
         captured["sitemap_url"] = sitemap_url
         captured["filter_path"] = filter_path
         return ["https://example.com/story"]

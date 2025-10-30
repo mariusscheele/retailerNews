@@ -48,6 +48,14 @@ class SiteConfig(BaseModel):
         default=None,
         description="Optional path fragment used to filter sitemap entries",
     )
+    use_playwright: bool = Field(
+        default=False,
+        description=(
+            "Whether to fetch pages using Playwright instead of plain HTTP requests. "
+            "This can help when sites rely on heavy client-side rendering or strict "
+            "bot protection."
+        ),
+    )
 
     @property
     def article_root(self) -> str:

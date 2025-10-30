@@ -22,9 +22,10 @@
       "name": "McKinsey retail reports",
       "root": "https://www.mckinsey.com/industries/",
       "url": "https://www.mckinsey.com/industries/consumer-packaged-goods/our-insights/",
-      "use_sitemap" : "True",
-      "sitemap_url" : "https://www.mckinsey.com/sitemap.xml",
-      "filter_path" : "https://www.mckinsey.com/industries/consumer-packaged-goods/",
+      "use_sitemap": true,
+      "sitemap_url": "https://www.mckinsey.com/sitemap.xml",
+      "filter_path": "https://www.mckinsey.com/industries/consumer-packaged-goods/",
+      "use_playwright": true,
       "topics": ["beauty", "fashion", "wellness", "make-up", "marketing"]
     }    
   ]

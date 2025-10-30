@@ -1,8 +1,15 @@
 import asyncio
 import re
 from typing import Optional, List
+
+import pytest
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
+
+playwright_async = pytest.importorskip(
+    "playwright.async_api",
+    reason="Playwright is required to crawl McKinsey pages",
+)
+async_playwright = playwright_async.async_playwright
 
 HEADERS = {
     "User-Agent": (
@@ -89,6 +96,7 @@ async def extract_article(url: str) -> Optional[dict]:
     return {
         "url": url,
         "title": title,
+        "summary": clean_text(title or url or ""),
         "author": author,
         "publish_date": publish_date,
         "text": text,

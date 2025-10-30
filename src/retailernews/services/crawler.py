@@ -16,6 +16,11 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field, HttpUrl
 from urllib3.util.retry import Retry
 
+try:  # pragma: no cover - optional dependency during tests
+    from playwright.sync_api import sync_playwright
+except ModuleNotFoundError:  # pragma: no cover - optional dependency during tests
+    sync_playwright = None  # type: ignore[assignment]
+
 from retailernews.config import SiteConfig
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
 
@@ -58,6 +63,34 @@ _sitemap_session = requests.Session()
 _sitemap_session.headers.update(HEADERS)
 _sitemap_session.mount("https://", HTTPAdapter(max_retries=_sitemap_retry))
 _sitemap_session.mount("http://", HTTPAdapter(max_retries=_sitemap_retry))
+
+
+def _ensure_playwright() -> None:
+    """Ensure the Playwright dependency is available."""
+
+    if sync_playwright is None:  # pragma: no cover - runtime guard
+        raise RuntimeError(
+            "Playwright is required for this site but is not installed. Install the 'playwright' "
+            "package and run 'playwright install firefox' to enable scripted crawling."
+        )
+
+
+def fetch_with_playwright(url: str, wait_ms: int = 3000) -> str:
+    """Fetch raw page content using Playwright with a Firefox browser."""
+
+    _ensure_playwright()
+
+    with sync_playwright() as playwright:  # type: ignore[operator]
+        browser = playwright.firefox.launch(headless=True)
+        context = browser.new_context(extra_http_headers=HEADERS)
+        try:
+            page = context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            page.wait_for_timeout(wait_ms)
+            return page.content()
+        finally:
+            context.close()
+            browser.close()
 
 
 def store_json(path: str, payload: dict, *, blob_root: Path | str | None = None) -> None:
@@ -266,13 +299,16 @@ def discover_links_from_page(root_url: str) -> List[str]:
 
 
 def discover_links_from_sitemap(
-    sitemap_url: str, filter_path: str | None = None
+    sitemap_url: str, filter_path: str | None = None, *, use_playwright: bool = False
 ) -> List[str]:
     """Parse sitemap.xml and return links (optionally filtered by path)."""
-    print("Kommer her")
-    response = _sitemap_session.get(sitemap_url, timeout=SITEMAP_REQUEST_TIMEOUT)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "xml")
+    if use_playwright:
+        xml = fetch_with_playwright(sitemap_url, wait_ms=1000)
+        soup = BeautifulSoup(xml, "xml")
+    else:
+        response = _sitemap_session.get(sitemap_url, timeout=SITEMAP_REQUEST_TIMEOUT)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "xml")
     urls = [loc.text for loc in soup.find_all("loc")]
     if filter_path:
         urls = [url for url in urls if filter_path in url]
@@ -284,6 +320,8 @@ def crawl(
     use_sitemap: bool = False,
     sitemap_url: str | None = None,
     filter_path: str | None = None,
+    *,
+    use_playwright: bool = False,
 ) -> None:
     """Crawl pages starting from a root URL.
 
@@ -295,14 +333,17 @@ def crawl(
     if use_sitemap:
         if not sitemap_url:
             raise ValueError("Sitemap URL must be provided if use_sitemap=True")
-        links = discover_links_from_sitemap(sitemap_url, filter_path)
+        links = discover_links_from_sitemap(
+            sitemap_url,
+            filter_path,
+            use_playwright=use_playwright,
+        )
     else:
         links = discover_links_from_page(root_url)
 
     print(f"Discovered {len(links)} links")
 
     storage_root = resolve_blob_root(BLOB_ROOT)
-    counter = 0
     for link in links:
         path = article_path(link)
 
@@ -310,15 +351,20 @@ def crawl(
             continue  # skip if already stored
 
         try:
-            response = requests.get(link, headers=HEADERS, timeout=(10, 60))
-            response.raise_for_status()
-            title, text = extract_text(response.text)
+            if use_playwright:
+                html = fetch_with_playwright(link)
+                title, text = extract_text(html)
+                datestamp = find_published_date(html)
+            else:
+                response = requests.get(link, headers=HEADERS, timeout=(10, 60))
+                response.raise_for_status()
+                title, text = extract_text(response.text)
+                datestamp = find_published_date(response.text)
 
             if not text or len(text) < 200:
                 print(f"Too little text, skip: {link}")
                 continue
 
-            datestamp = find_published_date(response.text)
             payload = {
                 "url": link,
                 "title": title,
@@ -330,7 +376,7 @@ def crawl(
             }
             store_json(path, payload, blob_root=storage_root)
             record_stored_url(link, blob_root=storage_root)
-            
+
             print(f"Stored {link}")
 
         except Exception as exc:  # noqa: BLE001 - broad catch keeps crawl running
@@ -380,6 +426,7 @@ class SiteCrawler:
         use_sitemap: bool | None = None,
         sitemap_url: str | HttpUrl | None = None,
         filter_path: str | None = None,
+        use_playwright: bool | None = None,
     ) -> SiteCrawlResult:
         """Fetch a site, extract article links and retrieve new article content.
 
@@ -393,6 +440,9 @@ class SiteCrawler:
 
         resolved_use_sitemap = site.use_sitemap if use_sitemap is None else use_sitemap
         resolved_filter_path = site.filter_path if filter_path is None else filter_path
+        resolved_use_playwright = (
+            site.use_playwright if use_playwright is None else use_playwright
+        )
         if sitemap_url is not None:
             resolved_sitemap_url = str(sitemap_url)
         elif site.sitemap_url is not None:
@@ -403,16 +453,24 @@ class SiteCrawler:
         if resolved_use_sitemap:
             if not resolved_sitemap_url:
                 raise ValueError("Sitemap URL must be provided when use_sitemap is True")
-            links = self.discover_links_from_sitemap(resolved_sitemap_url, resolved_filter_path)
+            links = self.discover_links_from_sitemap(
+                resolved_sitemap_url,
+                resolved_filter_path,
+                use_playwright=resolved_use_playwright,
+            )
             discovered_articles = [
                 Article(url=link, topics=list(site.topics), summary=self._build_summary(title="", url=link))
                 for link in links
                 if site.allows_url(link)
             ]
         else:
-            response = self._session.get(base_url, timeout=(10, 60))
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "lxml")
+            if resolved_use_playwright:
+                html = fetch_with_playwright(base_url)
+                soup = BeautifulSoup(html, "lxml")
+            else:
+                response = self._session.get(base_url, timeout=(10, 60))
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, "lxml")
             discovered_articles = list(self._extract_articles(soup, site.topics, base_url))
 
         storage_root = resolve_blob_root(BLOB_ROOT)
@@ -430,10 +488,22 @@ class SiteCrawler:
                 continue
 
             try:
-                article_response = self._session.get(url, timeout=(10, 60))
-                article_response.raise_for_status()
-                title, text = self.extract_text(article_response.text)
+                if resolved_use_playwright:
+                    html = fetch_with_playwright(url)
+                    title, text = self.extract_text(html)
+                    datestamp = self.find_published_date(html)
+                else:
+                    article_response = self._session.get(url, timeout=(10, 60))
+                    article_response.raise_for_status()
+                    title, text = self.extract_text(article_response.text)
+                    datestamp = self.find_published_date(article_response.text)
             except requests.RequestException as exc:
+                print(f"Failed {url}: {exc}")
+                continue
+            except RuntimeError as exc:
+                print(f"Failed {url}: {exc}")
+                continue
+            except Exception as exc:  # noqa: BLE001 - Playwright failures and others
                 print(f"Failed {url}: {exc}")
                 continue
 
@@ -451,7 +521,7 @@ class SiteCrawler:
                 "url": url,
                 "title": article_data["title"],
                 "fetched_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "datestamp": self.find_published_date(article_response.text),
+                "datestamp": datestamp,
                 "text": text,
             }
 
