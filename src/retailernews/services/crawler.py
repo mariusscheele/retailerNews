@@ -312,6 +312,7 @@ def discover_links_from_sitemap(
     urls = [loc.text for loc in soup.find_all("loc")]
     if filter_path:
         urls = [url for url in urls if filter_path in url]
+        urls = urls[:10]
     return urls
 
 
@@ -338,6 +339,7 @@ def crawl(
             filter_path,
             use_playwright=use_playwright,
         )
+        links = links[:50]
     else:
         links = discover_links_from_page(root_url)
 

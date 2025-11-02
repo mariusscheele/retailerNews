@@ -20,7 +20,7 @@
     },
     {
       "name": "McKinsey retail reports",
-      "root": "https://www.mckinsey.com/industries/",
+      "root": "https://www.mckinsey.com/industries/consumer-packaged-goods/",
       "url": "https://www.mckinsey.com/industries/consumer-packaged-goods/our-insights/",
       "use_sitemap": true,
       "sitemap_url": "https://www.mckinsey.com/sitemap.xml",

@@ -123,8 +123,8 @@ async def crawl_mckinsey_section(base_url: str, section_path: str):
 # ---- Example usage ----
 if __name__ == "__main__":
     async def main():
-        base_url = "https://www.mckinsey.com"
-        section_path = "/industries/retail/our-insights/"
+        base_url = "https://www.mckinsey.com/"
+        section_path = "industries/consumer-packaged-goods/our-insights/"
         articles = await crawl_mckinsey_section(base_url, section_path)
 
         # Print a preview of first article
