@@ -30,7 +30,7 @@ BLOB_ROOT = DEFAULT_BLOB_ROOT
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
 STORED_URLS_INDEX = "stored_urls.json"
 MAX_INTERNAL_LINKS = 10
-URL_BLACKLIST_PATH = Path(__file__).resolve().parents[2] / "data" / "blacklisted_urls.json"
+URL_BLACKLIST_PATH = Path(__file__).resolve().parents[3] / "data" / "blacklisted_urls.json"
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -68,29 +68,20 @@ _sitemap_session.mount("http://", HTTPAdapter(max_retries=_sitemap_retry))
 _URL_BLACKLIST_CACHE: set[str] | None = None
 
 
-def get_url_blacklist(path: Path | str | None = None) -> set[str]:
+def get_url_blacklist() -> set[str]:
     """Return the configured set of URLs to skip when crawling sitemaps."""
 
     global _URL_BLACKLIST_CACHE
+    
 
-    if path is None and _URL_BLACKLIST_CACHE is not None:
-        return _URL_BLACKLIST_CACHE
+    full_path = URL_BLACKLIST_PATH
 
-    config_path = Path(path) if path else URL_BLACKLIST_PATH
-
-    if not config_path.exists():
-        urls: set[str] = set()
-    else:
-        payload = json.loads(config_path.read_text(encoding="utf-8"))
-        if isinstance(payload, dict):
+    payload = json.loads(full_path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
             candidates = payload.get("urls", []) or []
-        else:
+    else:
             candidates = payload
-        urls = {str(item).strip() for item in candidates if str(item).strip()}
-
-    if path is None:
-        _URL_BLACKLIST_CACHE = urls
-
+    urls = {str(item).strip() for item in candidates if str(item).strip()}
     return urls
 
 
@@ -342,6 +333,7 @@ def discover_links_from_sitemap(
     if filter_path:
         urls = [url for url in urls if filter_path in url]
     blacklist = get_url_blacklist()
+
     if blacklist:
         urls = [url for url in urls if url not in blacklist]
     if filter_path:
