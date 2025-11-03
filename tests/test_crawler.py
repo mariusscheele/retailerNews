@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from bs4 import BeautifulSoup
 
 from retailernews.config import SiteConfig
+from retailernews.services import crawler
 from retailernews.services.crawler import SiteCrawler
 
 
@@ -188,6 +189,32 @@ def test_fetch_filters_articles_by_root(monkeypatch) -> None:
     assert recorded_urls == ["https://example.com/story"]
     assert [str(article.url) for article in result.articles] == ["https://example.com/story"]
     assert stored_payloads
+
+
+def test_discover_links_from_sitemap_skips_blacklisted(monkeypatch) -> None:
+    xml = """
+    <urlset>
+        <url><loc>https://example.com/story-1</loc></url>
+        <url><loc>https://example.com/contact</loc></url>
+        <url><loc>https://example.com/story-2</loc></url>
+    </urlset>
+    """
+
+    response = DummyResponse(xml)
+
+    monkeypatch.setattr(
+        crawler,
+        "_sitemap_session",
+        SimpleNamespace(get=lambda url, timeout: response),
+    )
+    monkeypatch.setattr(crawler, "get_url_blacklist", lambda path=None: {"https://example.com/contact"})
+
+    urls = crawler.discover_links_from_sitemap("https://example.com/sitemap.xml")
+
+    assert urls == [
+        "https://example.com/story-1",
+        "https://example.com/story-2",
+    ]
 
 
 def test_fetch_accepts_sitemap_arguments(monkeypatch) -> None:

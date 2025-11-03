@@ -30,6 +30,7 @@ BLOB_ROOT = DEFAULT_BLOB_ROOT
 EXTRACTED_URLS_INDEX = "extracted_urls.json"
 STORED_URLS_INDEX = "stored_urls.json"
 MAX_INTERNAL_LINKS = 10
+URL_BLACKLIST_PATH = Path(__file__).resolve().parents[2] / "data" / "blacklisted_urls.json"
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -63,6 +64,34 @@ _sitemap_session = requests.Session()
 _sitemap_session.headers.update(HEADERS)
 _sitemap_session.mount("https://", HTTPAdapter(max_retries=_sitemap_retry))
 _sitemap_session.mount("http://", HTTPAdapter(max_retries=_sitemap_retry))
+
+_URL_BLACKLIST_CACHE: set[str] | None = None
+
+
+def get_url_blacklist(path: Path | str | None = None) -> set[str]:
+    """Return the configured set of URLs to skip when crawling sitemaps."""
+
+    global _URL_BLACKLIST_CACHE
+
+    if path is None and _URL_BLACKLIST_CACHE is not None:
+        return _URL_BLACKLIST_CACHE
+
+    config_path = Path(path) if path else URL_BLACKLIST_PATH
+
+    if not config_path.exists():
+        urls: set[str] = set()
+    else:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            candidates = payload.get("urls", []) or []
+        else:
+            candidates = payload
+        urls = {str(item).strip() for item in candidates if str(item).strip()}
+
+    if path is None:
+        _URL_BLACKLIST_CACHE = urls
+
+    return urls
 
 
 def _ensure_playwright() -> None:
@@ -312,6 +341,10 @@ def discover_links_from_sitemap(
     urls = [loc.text for loc in soup.find_all("loc")]
     if filter_path:
         urls = [url for url in urls if filter_path in url]
+    blacklist = get_url_blacklist()
+    if blacklist:
+        urls = [url for url in urls if url not in blacklist]
+    if filter_path:
         urls = urls[:10]
     return urls
 
