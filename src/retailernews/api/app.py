@@ -16,16 +16,30 @@ INDEX_HTML = """
     <title>Retailer News Crawler</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: light;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f4f4f5;
-        color: #0f172a;
+        --color-beige: #f7f1ea;
+        --color-lilla-1: #f1e7f8;
+        --color-lilla-2: #e0c8f5;
+        --color-lilla-3: #d8b1fb;
+        --color-lilla-4: #9d64e8;
+        --color-rosa-1: #ffb6d4;
+        --color-rosa-2: #f7d2e0;
+        --color-rosa-3: #fdefee;
+        --color-salg: #ff69b4;
+        --color-fersken: #f8ccaf;
+        background: var(--color-beige);
+        color: #4a2f60;
       }
 
       body {
         margin: 0;
         min-height: 100vh;
-        background: radial-gradient(circle at top left, #eef2ff, #f5f5f5 55%);
+        background: radial-gradient(
+          circle at top left,
+          var(--color-lilla-1),
+          var(--color-beige) 55%
+        );
       }
 
       .layout {
@@ -35,9 +49,9 @@ INDEX_HTML = """
       }
 
       .sidebar {
-        background: white;
+        background: var(--color-lilla-1);
         padding: 32px 28px;
-        box-shadow: 8px 0 24px rgba(15, 23, 42, 0.08);
+        box-shadow: 8px 0 24px rgba(157, 100, 232, 0.18);
         display: flex;
         flex-direction: column;
         gap: 24px;
@@ -46,12 +60,12 @@ INDEX_HTML = """
       .sidebar h1 {
         margin: 0;
         font-size: 1.75rem;
-        color: #1f2937;
+        color: var(--color-lilla-4);
       }
 
       .sidebar p {
         margin: 0;
-        color: #475569;
+        color: #6f4f96;
         line-height: 1.5;
       }
 
@@ -68,10 +82,14 @@ INDEX_HTML = """
         font-size: 1rem;
         font-weight: 600;
         cursor: pointer;
-        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        background: linear-gradient(
+          135deg,
+          var(--color-lilla-3),
+          var(--color-lilla-4)
+        );
         color: white;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
-        box-shadow: 0 12px 30px rgba(37, 99, 235, 0.25);
+        box-shadow: 0 12px 30px rgba(157, 100, 232, 0.35);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -86,13 +104,13 @@ INDEX_HTML = """
 
       button:not(:disabled):hover {
         transform: translateY(-2px);
-        box-shadow: 0 16px 32px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 16px 32px rgba(157, 100, 232, 0.4);
       }
 
       .status {
         min-height: 24px;
         font-weight: 600;
-        color: #1f2937;
+        color: var(--color-salg);
       }
 
       .content {
@@ -107,33 +125,33 @@ INDEX_HTML = """
       .welcome {
         max-width: 720px;
         text-align: center;
-        background: rgba(255, 255, 255, 0.7);
+        background: rgba(253, 239, 238, 0.8);
         backdrop-filter: blur(6px);
         padding: 32px;
         border-radius: 24px;
-        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 20px 45px rgba(248, 204, 175, 0.4);
       }
 
       .welcome h2 {
         margin: 0 0 12px;
         font-size: 2rem;
-        color: #111827;
+        color: var(--color-lilla-4);
       }
 
       .welcome p {
         margin: 0;
-        color: #475569;
+        color: #6f4f96;
         line-height: 1.6;
       }
 
       .digest-panel {
         max-width: 760px;
         width: 100%;
-        background: white;
+        background: var(--color-rosa-3);
         border-radius: 28px;
         padding: 36px;
-        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
-        
+        box-shadow: 0 24px 50px rgba(157, 100, 232, 0.18);
+
       }
 
       .digest-panel.visible {
@@ -143,13 +161,13 @@ INDEX_HTML = """
       .digest-panel h3 {
         margin-top: 0;
         font-size: 1.5rem;
-        color: #111827;
+        color: var(--color-lilla-4);
       }
 
       .digest-article {
         margin: 0;
         padding: 0;
-        color: #1f2937;
+        color: #5a2f66;
         line-height: 1.8;
         display: grid;
         gap: 16px;
@@ -160,13 +178,13 @@ INDEX_HTML = """
       }
 
       .digest-article strong {
-        color: #1d4ed8;
+        color: var(--color-salg);
       }
 
       .extracted-urls {
         margin-top: 32px;
         padding-top: 24px;
-        border-top: 1px solid rgba(148, 163, 184, 0.3);
+        border-top: 1px solid rgba(157, 100, 232, 0.25);
         display: grid;
         gap: 12px;
       }
@@ -174,7 +192,7 @@ INDEX_HTML = """
       .extracted-urls h4 {
         margin: 0;
         font-size: 1.1rem;
-        color: #0f172a;
+        color: var(--color-lilla-4);
       }
 
       .extracted-urls ul {
@@ -182,7 +200,7 @@ INDEX_HTML = """
         padding-left: 20px;
         display: grid;
         gap: 8px;
-        color: #1f2937;
+        color: #5a2f66;
       }
 
       .extracted-urls li {
@@ -190,27 +208,27 @@ INDEX_HTML = """
       }
 
       .extracted-urls a {
-        color: inherit;
+        color: var(--color-lilla-4);
         text-decoration: none;
-        border-bottom: 1px dashed rgba(148, 163, 184, 0.6);
+        border-bottom: 1px dashed rgba(157, 100, 232, 0.6);
       }
 
       .extracted-urls a:hover,
       .extracted-urls a:focus {
-        color: #1d4ed8;
-        border-bottom-color: #1d4ed8;
+        color: var(--color-salg);
+        border-bottom-color: var(--color-salg);
       }
 
       .extracted-urls-empty {
         margin: 0;
-        color: #64748b;
+        color: #7f5ca8;
       }
 
       .digest-status {
         padding: 12px 16px;
         border-radius: 16px;
-        background: rgba(79, 70, 229, 0.08);
-        color: #3730a3;
+        background: rgba(255, 182, 212, 0.45);
+        color: #b23b87;
         font-weight: 600;
         text-align: center;
       }
@@ -222,7 +240,7 @@ INDEX_HTML = """
 
         .sidebar {
           box-shadow: none;
-          border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+          border-bottom: 1px solid rgba(248, 204, 175, 0.6);
         }
 
         .content {
