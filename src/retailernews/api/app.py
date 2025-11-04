@@ -9,11 +9,11 @@ from retailernews.api.routes import router
 
 INDEX_HTML = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nb">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Retailer News Crawler</title>
+    <title>VITA nettavis</title>
     <style>
       :root {
         color-scheme: light;
@@ -253,48 +253,54 @@ INDEX_HTML = """
     <div class="layout">
       <aside class="sidebar">
         <div>
-          <h1>Retailer News Toolkit</h1>
+          <h1>VITA innsiktsdesk</h1>
           <p>
-            Run the crawler to capture the newest updates and build a summary
-            when you're ready to review the highlights.
+            Kjør nettroboten for å hente de ferskeste sakene fra skjønnhetsbransjen
+            og bygg et sammendrag når du trenger raske høydepunkter. På siden
+            for Kundeopplevelse finner du inspirasjon til sømløse handleopplevelser,
+            mens Kundelojalitet samler ideer for å belønne stamkundene våre.
           </p>
         </div>
         <div class="actions">
           <button id="run-crawler" type="button">
             <span aria-hidden="true">🕷️</span>
-            Run crawler
+            Kjør nettrobot
           </button>
           <button id="run-summarizer" type="button">
             <span aria-hidden="true">📝</span>
-            Build summary
+            Bygg sammendrag
           </button>
           <button id="customer-experience" type="button">
             <span aria-hidden="true">💡</span>
-            Customer Experience
+            Kundeopplevelse
           </button>
           <button id="customer-loyalty" type="button">
             <span aria-hidden="true">🧠</span>
-            Customer Loyalty
+            Kundelojalitet
           </button>
         </div>
         <div class="status" id="status"></div>
       </aside>
       <main class="content">
         <section class="welcome">
-          <h2>Welcome to our page for latest news within beauty industry</h2>
+          <h2>Velkommen til VITAs nettavis</h2>
           <p>
-            Explore curated updates and insights from across the beauty retail
-            landscape. Build a fresh digest whenever you need an executive-ready
-            overview of what matters most.
+            Oppdag kuraterte nyheter, produktlanseringer og markedsinnsikt som
+            holder VITA i forkant av skjønnhetsopplevelsen. Bygg ditt eget
+            sammendrag når du vil dele et kjapt overblikk med teamet.
+          </p>
+          <p>
+            Herfra kan du også fordype deg i Kundeopplevelse og Kundelojalitet for
+            å se hvilke grep som styrker kundeflyt, service og gjentatte kjøp.
           </p>
         </section>
         <section class="digest-panel" id="digest-panel">
-          <h3>Executive Digest</h3>
+          <h3>Lederoppsummering</h3>
           <article class="digest-article" id="digest-article"></article>
           <div class="extracted-urls" id="extracted-urls">
-            <h4>Extracted URLs</h4>
+            <h4>Innhentede lenker</h4>
             <p class="extracted-urls-empty" id="extracted-urls-empty">
-              No URLs have been stored yet. Run the crawler to populate this list.
+              Ingen lenker er lagret ennå. Kjør nettroboten for å fylle listen.
             </p>
             <ul id="extracted-urls-list"></ul>
           </div>
@@ -420,7 +426,7 @@ INDEX_HTML = """
 
           if (!paragraphs.length) {
             const fallback = document.createElement("p");
-            fallback.textContent = "No digest content available.";
+            fallback.textContent = "Ingen sammendragsinnhold tilgjengelig.";
             digestArticle.appendChild(fallback);
             return;
           }
@@ -528,11 +534,11 @@ INDEX_HTML = """
             const response = await fetch(url, { method: "POST" });
             if (!response.ok) {
               const message = await response.text();
-              throw new Error(message || `Request failed with ${response.status}`);
+              throw new Error(message || `Forespørselen mislyktes med status ${response.status}`);
             }
 
             const payload = await response.json();
-            const completionMessage = `Completed at ${new Date().toLocaleTimeString()}`;
+            const completionMessage = `Fullført kl. ${new Date().toLocaleTimeString()}`;
             statusEl.textContent = completionMessage;
 
             if (completionDigestMessage) {
@@ -543,7 +549,7 @@ INDEX_HTML = """
               onSuccess(payload);
             }
           } catch (error) {
-            const errorMessage = `Error: ${error.message}`;
+            const errorMessage = `Feil: ${error.message}`;
             statusEl.textContent = errorMessage;
             showDigestMessage(errorMessage);
           } finally {
@@ -553,9 +559,9 @@ INDEX_HTML = """
 
         crawlerButton.addEventListener("click", () => {
           callEndpoint(crawlerButton, "/api/crawl", {
-            statusMessage: "Running crawler...",
-            digestMessage: "Crawler started. Gathering the latest updates...",
-            completionDigestMessage: "Crawler completed.",
+            statusMessage: "Kjører nettrobot ...",
+            digestMessage: "Nettroboten er i gang og henter de siste oppdateringene ...",
+            completionDigestMessage: "Nettroboten er ferdig.",
             onSuccess: (payload) => {
               const urls = payload && Array.isArray(payload.stored_urls)
                 ? payload.stored_urls
@@ -567,8 +573,8 @@ INDEX_HTML = """
 
         summarizerButton.addEventListener("click", () => {
           callEndpoint(summarizerButton, "/api/summaries", {
-            statusMessage: "Building digest...",
-            digestMessage: "Building your executive digest...",
+            statusMessage: "Bygger sammendrag ...",
+            digestMessage: "Setter sammen lederoppsummeringen ...",
             onSuccess: (payload) => {
               const digest = payload && payload.digest ? payload.digest.trim() : "";
               renderDigestArticle(digest);
@@ -596,11 +602,11 @@ INDEX_HTML = """
 
 CUSTOMER_EXPERIENCE_HTML = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nb">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Retailer News | Customer Experience</title>
+    <title>VITA nettavis | Kundeopplevelse</title>
     <style>
       :root {
         color-scheme: light;
@@ -853,48 +859,48 @@ CUSTOMER_EXPERIENCE_HTML = """
   </head>
   <body>
     <nav>
-      <a href="/">⬅️ Back to dashboard</a>
+      <a href="/">⬅️ Tilbake til oversikten</a>
     </nav>
     <header>
-      <h1>Welcome to the Customer Experience hub</h1>
-      <p>Your spotlight on the most impactful CX developments across retail.</p>
+      <h1>Velkommen til VITAs hub for kundeopplevelse</h1>
+      <p>Din oversikt over de viktigste trendene innen kundeopplevelse i detaljhandelen.</p>
     </header>
     <main>
       <section class="summary-card" aria-live="polite">
-        <h2>Category Summary</h2>
+        <h2>Kategorioppsummering</h2>
         <div class="summary-content" id="summary-content">
-          <p class="status-message">Loading the latest insights...</p>
+          <p class="status-message">Laster de nyeste innsiktene ...</p>
         </div>
         <div class="prompt-panel" id="advice-prompt-panel">
           <div>
-            <h3>Shape the strategic guidance</h3>
+            <h3>Form de strategiske rådene</h3>
             <p>
-              Add context or priorities to tailor the recommendations generated from the
-              Customer Experience digest.
+              Legg til kontekst eller prioriteringer for å skreddersy anbefalingene som
+              bygges fra sammendraget for kundeopplevelse.
             </p>
           </div>
-          <label class="prompt-label" for="advice-prompt-input">Guidance focus</label>
+          <label class="prompt-label" for="advice-prompt-input">Fokus for veiledningen</label>
           <textarea
             class="prompt-input"
             id="advice-prompt-input"
             name="advice-prompt"
             rows="4"
-            placeholder="Describe the outcomes, constraints, or focus areas you want the advice to cover"
+            placeholder="Beskriv ønskede resultater, begrensninger eller fokusområder rådene skal dekke"
           ></textarea>
           <div class="prompt-actions">
             <button type="button" class="prompt-submit" id="advice-prompt-submit">
-              Generate strategic guidance
+              Lag strategiske råd
             </button>
             <p class="prompt-hint">
-              Tip: include goals such as "improve loyalty" or "compare digital vs. in-store focus".
+              Tips: inkluder mål som «øke konvertering i butikk» eller «styrke rådgivningen på nett».
             </p>
           </div>
           <p class="prompt-feedback" id="advice-prompt-feedback" aria-live="polite"></p>
         </div>
         <div class="advice-section" id="advice-section">
-          <h3>Strategic Guidance</h3>
+          <h3>Strategiske råd</h3>
           <div class="advice-content" id="advice-content">
-            <p class="status-message">Preparing tailored recommendations...</p>
+            <p class="status-message">Forbereder skreddersydde anbefalinger ...</p>
           </div>
         </div>
       </section>
@@ -907,7 +913,7 @@ CUSTOMER_EXPERIENCE_HTML = """
         const promptSubmit = document.getElementById("advice-prompt-submit");
         const promptFeedback = document.getElementById("advice-prompt-feedback");
         const ADVICE_EMPTY_MESSAGE =
-          "Strategic guidance will appear here after the next summary run.";
+          "Strategiske råd vises her etter neste oppsummering.";
 
         if (!summaryContent || !adviceContent) {
           return;
@@ -1097,18 +1103,18 @@ CUSTOMER_EXPERIENCE_HTML = """
             renderSanitizedHtml(
               summaryContent,
               target?.summary ?? "",
-              "We don't have Customer Experience insights yet. Generate a summary to view fresh updates.",
+              "Vi har ingen innsikt for kundeopplevelse ennå. Generer et sammendrag for ferske oppdateringer.",
             );
           } catch (error) {
             showStatusMessage(
               summaryContent,
-              error.message || "Unable to load Customer Experience insights right now.",
+              error.message || "Kan ikke laste innsikt for kundeopplevelse akkurat nå.",
             );
           }
         };
 
         const loadCustomerExperienceAdvice = async () => {
-          setPromptFeedback("Loading the latest strategic guidance...");
+          setPromptFeedback("Laster de siste strategiske rådene ...");
 
           try {
             const response = await fetch("/api/summaries/customer-experience/advice");
@@ -1125,12 +1131,12 @@ CUSTOMER_EXPERIENCE_HTML = """
             }
 
             const timestamp = new Date().toLocaleTimeString();
-            setPromptFeedback(`Loaded the latest saved guidance at ${timestamp}.`);
+            setPromptFeedback(`Siste lagrede råd ble hentet ${timestamp}.`);
           } catch (error) {
             const message =
               error instanceof Error
                 ? error.message
-                : "Unable to load strategic guidance right now.";
+                : "Kan ikke laste strategiske råd akkurat nå.";
             showStatusMessage(adviceContent, message);
             setPromptFeedback(message, true);
           }
@@ -1162,17 +1168,18 @@ CUSTOMER_EXPERIENCE_HTML = """
 
 CUSTOMER_LOYALTY_HTML = (
     CUSTOMER_EXPERIENCE_HTML
-    .replace("Customer Experience", "Customer Loyalty")
+    .replace("Kundeopplevelse", "Kundelojalitet")
+    .replace("kundeopplevelse", "kundelojalitet")
     .replace("customer-experience", "customer-loyalty")
     .replace("CustomerExperience", "CustomerLoyalty")
     .replace("customerExperience", "customerLoyalty")
     .replace(
-        "Your spotlight on the most impactful CX developments across retail.",
-        "Your hub for the latest loyalty and retention strategies across retail.",
+        "Din oversikt over de viktigste trendene innen kundeopplevelse i detaljhandelen.",
+        "Din portal til de ferskeste strategiene for kundelojalitet og retensjon i detaljhandelen.",
     )
     .replace(
-        'Tip: include goals such as "improve loyalty" or "compare digital vs. in-store focus".',
-        'Tip: include prompts such as "increase repeat purchases" or "reward top-tier members".',
+        'Tips: inkluder mål som «øke konvertering i butikk» eller «styrke rådgivningen på nett».',
+        'Tips: foreslå mål som «øke gjentakende kjøp» eller «aktivere fordelsmedlemmer raskere».',
     )
 )
 

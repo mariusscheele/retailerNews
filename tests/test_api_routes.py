@@ -124,5 +124,5 @@ def test_customer_loyalty_page_is_served() -> None:
 
     assert response.status_code == 200
     body = response.text
-    assert "Customer Loyalty hub" in body
+    assert "hub for kundelojalitet" in body
     assert "/api/summaries/customer-loyalty/advice" in body
