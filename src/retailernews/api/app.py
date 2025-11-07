@@ -74,6 +74,67 @@ INDEX_HTML = """
         gap: 16px;
       }
 
+      .source-filter {
+        display: grid;
+        gap: 12px;
+        padding: 20px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.65);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      }
+
+      .source-filter h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--color-lilla-4);
+      }
+
+      .source-filter p {
+        margin: 0;
+        color: #6f4f96;
+        font-size: 0.95rem;
+      }
+
+      .source-filter-options {
+        display: grid;
+        gap: 10px;
+      }
+
+      .source-filter-option {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.85);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      }
+
+      .source-filter-option label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #4a2f60;
+        font-weight: 600;
+      }
+
+      .source-filter-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--color-lilla-4);
+      }
+
+      .source-filter-option small {
+        font-size: 0.8rem;
+        color: #8464a5;
+      }
+
+      .source-filter-empty {
+        margin: 0;
+        color: #7f5ca8;
+        font-size: 0.95rem;
+      }
+
       button {
         appearance: none;
         border: none;
@@ -279,6 +340,14 @@ INDEX_HTML = """
             Kundelojalitet
           </button>
         </div>
+        <section class="source-filter" id="source-filter">
+          <h2>Velg kilder</h2>
+          <p>Marker hvilke nyhetskilder som skal inngå i sammendraget.</p>
+          <div class="source-filter-options" id="source-filter-options"></div>
+          <p class="source-filter-empty" id="source-filter-empty">
+            Laster tilgjengelige kilder ...
+          </p>
+        </section>
         <div class="status" id="status"></div>
       </aside>
       <main class="content">
@@ -320,6 +389,9 @@ INDEX_HTML = """
         const extractedUrlsSection = document.getElementById("extracted-urls");
         const extractedUrlsList = document.getElementById("extracted-urls-list");
         const extractedUrlsEmpty = document.getElementById("extracted-urls-empty");
+        const sourceFilter = document.getElementById("source-filter");
+        const sourceFilterOptions = document.getElementById("source-filter-options");
+        const sourceFilterEmpty = document.getElementById("source-filter-empty");
 
         if (
           !crawlerButton ||
@@ -331,7 +403,10 @@ INDEX_HTML = """
           !digestArticle ||
           !extractedUrlsSection ||
           !extractedUrlsList ||
-          !extractedUrlsEmpty
+          !extractedUrlsEmpty ||
+          !sourceFilter ||
+          !sourceFilterOptions ||
+          !sourceFilterEmpty
         ) {
           return;
         }
@@ -484,6 +559,95 @@ INDEX_HTML = """
           }
         };
 
+        const renderSourceOptions = (sites) => {
+          sourceFilterOptions.innerHTML = "";
+
+          const entries = Array.isArray(sites) ? sites : [];
+          if (!entries.length) {
+            sourceFilterEmpty.hidden = false;
+            sourceFilterEmpty.textContent = "Ingen kilder er konfigurert ennå.";
+            return;
+          }
+
+          sourceFilterEmpty.hidden = true;
+
+          const fragment = document.createDocumentFragment();
+          entries.forEach((site, index) => {
+            const option = document.createElement("div");
+            option.className = "source-filter-option";
+
+            const fallbackSlug =
+              typeof site?.name === "string"
+                ? site.name
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, "")
+                : "";
+            const slug =
+              typeof site?.slug === "string" && site.slug.trim()
+                ? site.slug.trim()
+                : fallbackSlug || `source-${index + 1}`;
+            const checkboxId = `source-${slug}`;
+
+            const label = document.createElement("label");
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.id = checkboxId;
+            checkbox.name = "source-filter";
+            checkbox.value = typeof site?.name === "string" ? site.name : "";
+            checkbox.checked = true;
+            label.appendChild(checkbox);
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent =
+              typeof site?.name === "string" && site.name.trim()
+                ? site.name.trim()
+                : "Ukjent kilde";
+            label.appendChild(nameSpan);
+
+            option.appendChild(label);
+
+            if (typeof site?.host === "string" && site.host.trim()) {
+              const hostHint = document.createElement("small");
+              hostHint.textContent = site.host.trim();
+              option.appendChild(hostHint);
+            }
+
+            fragment.appendChild(option);
+          });
+
+          sourceFilterOptions.appendChild(fragment);
+        };
+
+        const getSelectedSources = () =>
+          Array.from(
+            sourceFilterOptions.querySelectorAll('input[type="checkbox"]:checked'),
+          )
+            .map((input) => input.value)
+            .filter((value) => typeof value === "string" && value.trim())
+            .map((value) => value.trim());
+
+        const loadSources = async () => {
+          sourceFilterEmpty.hidden = false;
+          sourceFilterEmpty.textContent = "Laster tilgjengelige kilder ...";
+
+          try {
+            const response = await fetch("/api/sites");
+            if (!response.ok) {
+              throw new Error(`Failed to load sources (${response.status})`);
+            }
+
+            const payload = await response.json();
+            renderSourceOptions(Array.isArray(payload?.sites) ? payload.sites : []);
+          } catch (error) {
+            console.error(error);
+            sourceFilterOptions.innerHTML = "";
+            sourceFilterEmpty.hidden = false;
+            sourceFilterEmpty.textContent = "Kan ikke laste nyhetskilder akkurat nå.";
+          }
+        };
+
         const loadStoredDigest = async () => {
           try {
             const response = await fetch("/api/summaries/latest");
@@ -521,17 +685,28 @@ INDEX_HTML = """
         };
 
         const callEndpoint = async (button, url, options) => {
-          const statusMessage = options.statusMessage;
-          const digestMessage = options.digestMessage;
-          const completionDigestMessage = options.completionDigestMessage;
-          const onSuccess = options.onSuccess;
+          const {
+            statusMessage,
+            digestMessage,
+            completionDigestMessage,
+            onSuccess,
+            method = "POST",
+            body,
+          } = options;
 
           statusEl.textContent = statusMessage;
           showDigestMessage(digestMessage || statusMessage);
           button.disabled = true;
 
+          const fetchOptions = { method };
+
+          if (body !== undefined) {
+            fetchOptions.headers = { "Content-Type": "application/json" };
+            fetchOptions.body = JSON.stringify(body);
+          }
+
           try {
-            const response = await fetch(url, { method: "POST" });
+            const response = await fetch(url, fetchOptions);
             if (!response.ok) {
               const message = await response.text();
               throw new Error(message || `Forespørselen mislyktes med status ${response.status}`);
@@ -572,7 +747,19 @@ INDEX_HTML = """
         });
 
         summarizerButton.addEventListener("click", () => {
-          callEndpoint(summarizerButton, "/api/summaries", {
+          const checkboxes = sourceFilterOptions.querySelectorAll('input[type="checkbox"]');
+          const selectedSources = getSelectedSources();
+
+          if (checkboxes.length && !selectedSources.length) {
+            const message = "Velg minst én nyhetskilde for sammendraget.";
+            statusEl.textContent = message;
+            showDigestMessage(message);
+            return;
+          }
+
+          const requestBody = checkboxes.length ? { sources: selectedSources } : undefined;
+
+          const options = {
             statusMessage: "Bygger sammendrag ...",
             digestMessage: "Setter sammen lederoppsummeringen ...",
             onSuccess: (payload) => {
@@ -580,7 +767,13 @@ INDEX_HTML = """
               renderDigestArticle(digest);
               digestPanel.classList.add("visible");
             },
-          });
+          };
+
+          if (requestBody !== undefined) {
+            options.body = requestBody;
+          }
+
+          callEndpoint(summarizerButton, "/api/summaries", options);
         });
 
         customerExperienceButton.addEventListener("click", () => {
@@ -591,6 +784,7 @@ INDEX_HTML = """
           window.location.href = "/customer-loyalty";
         });
 
+        loadSources();
         loadStoredDigest();
         loadStoredUrls();
       });

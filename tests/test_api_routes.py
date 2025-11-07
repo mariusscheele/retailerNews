@@ -15,6 +15,7 @@ from retailernews.api.routes import (
     load_latest_digest,
     store_latest_digest,
 )
+from retailernews.config import AppConfig, SiteConfig
 from retailernews.services.summarizer import default_category_advice_prompt
 
 
@@ -126,3 +127,71 @@ def test_customer_loyalty_page_is_served() -> None:
     body = response.text
     assert "hub for kundelojalitet" in body
     assert "/api/summaries/customer-loyalty/advice" in body
+
+
+def test_list_sites_returns_configured_sources() -> None:
+    """Site metadata from the configuration file is exposed via the API."""
+
+    app = create_app()
+    client = TestClient(app)
+
+    config = AppConfig(
+        sites=[
+            SiteConfig(name="Alpha", url="https://alpha.example.com", root="https://alpha.example.com/articles"),
+            SiteConfig(name="Beta", url="https://beta.example.com"),
+        ],
+    )
+
+    with patch("retailernews.api.routes.AppConfig.from_file", return_value=config):
+        response = client.get("/api/sites")
+
+    assert response.status_code == 200
+    payload = response.json()
+    names = [entry["name"] for entry in payload["sites"]]
+    assert names == ["Alpha", "Beta"]
+    assert payload["sites"][0]["slug"] == "alpha"
+    assert payload["sites"][0]["host"] == "alpha.example.com"
+
+
+def test_trigger_summarizer_requires_source_when_empty_list() -> None:
+    """Submitting an explicit empty source list returns a validation error."""
+
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post("/api/summaries", json={"sources": []})
+
+    assert response.status_code == 400
+    assert "nyhetskilde" in response.json()["detail"].lower()
+
+
+def test_trigger_summarizer_passes_source_filters_to_pipeline() -> None:
+    """Selected sources are forwarded to the summarisation pipeline."""
+
+    app = create_app()
+    client = TestClient(app)
+
+    class DummyResult:
+        def __init__(self) -> None:
+            self.digest = "Digest"
+            self.categories = []
+
+    captured: dict[str, object] = {}
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):  # type: ignore[override]
+        captured["func"] = func
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return DummyResult()
+
+    with patch("retailernews.api.routes.run_in_threadpool", side_effect=fake_run_in_threadpool), patch(
+        "retailernews.api.routes.store_latest_digest",
+    ):
+        response = client.post(
+            "/api/summaries",
+            json={"sources": ["McKinsey retail reports"]},
+        )
+
+    assert response.status_code == 200
+    assert "args" in captured
+    assert captured["args"][-1] == {"mckinsey retail reports"}
