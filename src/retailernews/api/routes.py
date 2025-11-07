@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import List
+from urllib.parse import urlparse
 
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, ValidationError
 
@@ -54,6 +56,13 @@ class SummariesResponse(BaseModel):
     categories: List[CategorySummary] = Field(default_factory=list)
 
 
+class SummariesRequest(BaseModel):
+    blob_root: str | None = None
+    model: str | None = None
+    category: str | None = None
+    sources: List[str] | None = None
+
+
 class CategoryAdviceRequest(BaseModel):
     prompt: str | None = None
     model: str | None = None
@@ -68,6 +77,16 @@ class CategoryAdviceResponse(BaseModel):
 
 class StoredUrlsResponse(BaseModel):
     urls: List[str] = Field(default_factory=list)
+
+
+class SiteEntry(BaseModel):
+    name: str
+    slug: str
+    host: str
+
+
+class SitesResponse(BaseModel):
+    sites: List[SiteEntry] = Field(default_factory=list)
 
 
 def _latest_digest_path(blob_root: str | Path | None = None) -> Path:
@@ -110,6 +129,14 @@ def load_latest_digest(blob_root: str | Path | None = None) -> "SummariesRespons
     except ValidationError as exc:
         logger.warning("Stored latest digest is invalid: %s", exc)
         return None
+
+
+def _slugify_source(name: str) -> str:
+    """Return a slug suitable for use in DOM element IDs."""
+
+    normalized = re.sub(r"[^a-z0-9]+", "-", name.strip().lower())
+    slug = normalized.strip("-")
+    return slug or "source"
 
 
 @router.post("/crawl", response_model=CrawlResponse)
@@ -155,16 +182,56 @@ async def list_crawled_urls() -> StoredUrlsResponse:
     return StoredUrlsResponse(urls=urls)
 
 
+@router.get("/sites", response_model=SitesResponse)
+async def list_sites() -> SitesResponse:
+    """Return the configured set of crawlable sites."""
+
+    try:
+        config = AppConfig.from_file()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    entries: List[SiteEntry] = []
+    for site in config.sites:
+        parsed = urlparse(site.article_root)
+        host = parsed.netloc or urlparse(str(site.url)).netloc
+        entries.append(SiteEntry(name=site.name, slug=_slugify_source(site.name), host=host))
+
+    return SitesResponse(sites=entries)
+
+
 @router.post("/summaries", response_model=SummariesResponse)
 async def trigger_summarizer(
-    blob_root: str = str(DEFAULT_BLOB_ROOT),
-    model: str = "gpt-4o-mini",
-    category: str | None = None,
+    payload: SummariesRequest | None = Body(default=None),
 ) -> SummariesResponse:
     """Execute the map-reduce summariser pipeline."""
 
+    request_payload = payload or SummariesRequest()
+
+    blob_root = request_payload.blob_root or str(DEFAULT_BLOB_ROOT)
+    model = request_payload.model or "gpt-4o-mini"
+    category = request_payload.category
+
+    included_sources: set[str] | None = None
+    if request_payload.sources is not None:
+        normalized = {
+            source.strip().lower()
+            for source in request_payload.sources
+            if isinstance(source, str) and source.strip()
+        }
+        if not normalized:
+            raise HTTPException(status_code=400, detail="Velg minst én nyhetskilde.")
+        included_sources = normalized
+
     try:
-        result = await run_in_threadpool(map_reduce_summarize, blob_root, model)
+        result = await run_in_threadpool(
+            map_reduce_summarize,
+            blob_root,
+            model,
+            included_sources,
+        )
     except Exception as exc:  # pragma: no cover - defensive guard for external service errors
         logger.exception("Summarisation failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

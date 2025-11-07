@@ -13,7 +13,7 @@ from typing import List
 from urllib.parse import urlparse
 
 from retailernews.blobstore import DEFAULT_BLOB_ROOT, resolve_blob_root
-from retailernews.config import CategoriesConfig
+from retailernews.config import AppConfig, CategoriesConfig
 
 _ADVICE_SYSTEM_PROMPT = (
     "You are a strategy advisor for Norwegian beauty and wellness retailers. "
@@ -278,6 +278,34 @@ def _load_categories_config() -> CategoriesConfig:
         return CategoriesConfig()
 
 
+def _resolve_hosts_for_sources(source_names: set[str]) -> set[str]:
+    """Return the set of URL hosts associated with the provided source names."""
+
+    if not source_names:
+        return set()
+
+    try:
+        config = AppConfig.from_file()
+    except FileNotFoundError:
+        print("Site configuration could not be loaded; no source filters applied.")
+        return set()
+    except ValueError as exc:
+        print(f"Site configuration could not be loaded: {exc}")
+        return set()
+
+    hosts: set[str] = set()
+    for site in config.sites:
+        if site.name.lower() not in source_names:
+            continue
+
+        parsed = urlparse(site.article_root)
+        host = parsed.netloc or urlparse(str(site.url)).netloc
+        if host:
+            hosts.add(host.lower())
+
+    return hosts
+
+
 def _classify_with_keywords(
     summary: str, article_text: str, config: CategoriesConfig
 ) -> tuple[list[str], list[str]]:
@@ -501,7 +529,9 @@ def _build_category_digests(
 
 
 def map_summarize_articles(
-    blob_root: str | Path = DEFAULT_BLOB_ROOT, model: str = "gpt-4o-mini"
+    blob_root: str | Path = DEFAULT_BLOB_ROOT,
+    model: str = "gpt-4o-mini",
+    included_sources: set[str] | None = None,
 ) -> List[ArticleSummary]:
     """Summarize all articles within the blobstore and store results."""
 
@@ -513,6 +543,13 @@ def map_summarize_articles(
         return summaries
 
     categories_config = _load_categories_config()
+
+    allowed_hosts: set[str] | None = None
+    if included_sources:
+        allowed_hosts = _resolve_hosts_for_sources(included_sources)
+        if not allowed_hosts:
+            print("No stored articles matched the selected sources.")
+            return summaries
 
     for article_path in root_path.rglob("*.json"):
 
@@ -530,6 +567,12 @@ def map_summarize_articles(
         text = article.get("text", "")
         title = article.get("title", "")
         url = article.get("url", "")
+
+        if allowed_hosts is not None:
+            host = urlparse(url).netloc.lower()
+            if host not in allowed_hosts:
+                continue
+
         summary = summarize_single_article(text=text or "", title=title or "", model=model)
         categories, topics = classify_summary(summary, text or "", categories_config, model=model)
         summaries.append(
@@ -599,11 +642,17 @@ def reduce_summaries(summaries: List[ArticleSummary], model: str = "gpt-4o-mini"
 
 
 def map_reduce_summarize(
-    blob_root: str | Path = DEFAULT_BLOB_ROOT, model: str = "gpt-4o-mini"
+    blob_root: str | Path = DEFAULT_BLOB_ROOT,
+    model: str = "gpt-4o-mini",
+    included_sources: set[str] | None = None,
 ) -> MapReduceResult:
     """Run the full map-reduce summarization pipeline."""
 
-    summaries = map_summarize_articles(blob_root=blob_root, model=model)
+    summaries = map_summarize_articles(
+        blob_root=blob_root,
+        model=model,
+        included_sources=included_sources,
+    )
     digest = reduce_summaries(summaries=summaries, model=model)
     categories_config = _load_categories_config()
     category_digests = _build_category_digests(summaries, categories_config, model=model)
